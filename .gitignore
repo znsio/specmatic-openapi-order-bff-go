@@ -1,0 +1,17 @@
+# macOS system files
+.DS_Store
+
+# Build directories
+/build/
+
+# IDE-specific files and directories
+.vscode/
+
+# Log files
+*.log
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+*~.nib
