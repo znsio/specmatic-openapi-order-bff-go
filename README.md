@@ -57,6 +57,8 @@ Access find orders api again at http://localhost:8080/findAvailableProducts with
 This will start the specmatic stub server for domain api using the information in specmatic.json and run the integration tests that expects the domain api at port 9000.
 ```shell
 make integration_tests
+```
 OR
+```shell
 go run internal/test/integration_test.go
 ```
