@@ -21,9 +21,11 @@ A typical web application might look like this. We can use Specmatic to practice
 
 ## Tech
 1. Go (Gin)
-2. Specmatic
+2. Specmatic 
 3. Specmatic Beta extension (for mocking Kafka)
-4. Karate
+
+## Install specmatic package
+npm install specmatic 
  
 ## Start BFF Server
 This will start the Go BFF server
@@ -52,7 +54,9 @@ Access find orders api again at http://localhost:8080/findAvailableProducts with
 ```
 
 ## Run Tests
-This will start the specmatic stub server for domain api using the information in specmatic.json and run the karate tests that expects the domain api at port 9000.
+This will start the specmatic stub server for domain api using the information in specmatic.json and run the integration tests that expects the domain api at port 9000.
 ```shell
-./gradlew test
+make integration_tests
+OR
+go run internal/test/integration_test.go
 ```

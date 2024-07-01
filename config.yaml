@@ -1,12 +1,22 @@
 backend:
-  api: "http://localhost:8090"
+  host: "localhost"   
+  port: "8090"        
+  api: "http://${backend.host}:${backend.port}"  
+
+kafka:
+  host: "localhost"   
+  port: "9092"       
+  topic: "product-queries"
+  bootstrap-servers: "${kafka.host}:${kafka.port}"  
+
+server:
+  port: "8080"
+
 management:
   endpoints:
     web:
       exposure:
         include: "*"
-kafka:
-  bootstrap-servers: "localhost:9092"
-  topic: "product-queries"
-server:
-  port: "8080"
+
+
+

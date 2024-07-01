@@ -15,3 +15,8 @@
 *.bak
 *.swp
 *~.nib
+
+
+node_modules/
+
+package-lock.json
