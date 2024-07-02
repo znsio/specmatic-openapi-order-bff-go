@@ -17,7 +17,7 @@ func SendProductMessages(products []models.Product) error {
 
 	// Create a new Kafka writer
 	w := kafka.NewWriter(kafka.WriterConfig{
-		Brokers:  []string{cfg.KafkaBootstrapServers},
+		Brokers:  []string{cfg.KafkaHost + ":" + cfg.KafkaPort},
 		Topic:    cfg.KafkaTopic,
 		Balancer: &kafka.LeastBytes{},
 	})

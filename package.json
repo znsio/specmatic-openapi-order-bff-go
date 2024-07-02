@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "docker": "^1.0.0",
     "specmatic": "^1.3.31"
   }
 }

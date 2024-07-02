@@ -8,16 +8,18 @@ import (
 	"log"
 	"os/exec"
 	"time"
+
+	"github.com/znsio/specmatic-order-bff-go/internal/docker"
 )
 
 // HOST and PORT settings for the subs and the application
 const (
 	domainStubAPIHost = "localhost"
-	domainStubAPIPort = "8090"
+	domainStubAPIPort = "9000"
 	kafkaMockHost     = "localhost"
 	kafkaMockPort     = "9092"
 	bffServerHost     = "localhost"
-	bffServerPort     = "8080"
+	bffServerPort     = "8084"
 )
 
 // Map to store all cleanup function to stubs and application, for tear down later on.
@@ -47,14 +49,17 @@ func main() {
 		}
 	}()
 
+	go func() {
+		// Step 1. start order api stub server (domain service)
+		docker.StartOrderStub()
+	}()
+
 	// Step 1. add services to be started, in order.
 	services := []Service{
-		{Name: "order-api", Cmd: exec.CommandContext(ctx, "specmatic", "stub", "--host", domainStubAPIHost, "--port", domainStubAPIPort), Host: domainStubAPIHost, Port: domainStubAPIPort},
-		// {Name: "kafka-mock", Cmd: exec.CommandContext(ctx, "specmatic", "stub", "--host", kafkaMockHost, "--port", kafkaMockPort), Host: kafkaMockHost, Port: kafkaMockPort},
 		{Name: "BFF", Cmd: exec.CommandContext(ctx, "go", "run", "cmd/main.go"), Host: bffServerHost, Port: bffServerPort},
 	}
 
-	// Step 2. start the services
+	// Step 3. start the services
 	for _, service := range services {
 		err := startService(ctx, service)
 		if err != nil {
@@ -62,7 +67,7 @@ func main() {
 		}
 	}
 
-	// Step 3: Run the tests
+	// Step 4: Run the tests
 	err := runTests(ctx, bffServerHost, bffServerPort)
 	if err != nil {
 		log.Fatalf("Failed to run tests: %v", err)
