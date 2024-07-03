@@ -7,8 +7,10 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/docker/go-connections/nat"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
+	"github.com/znsio/specmatic-order-bff-go/internal/config"
 )
 
 func StartOrderStub() {
@@ -50,12 +52,20 @@ func StartOrderStub() {
 		log.Fatalf("Error getting host: %v", err)
 	}
 
-	port, err := specmaticC.MappedPort(ctx, "9000")
+	port, err := specmaticC.MappedPort(ctx, nat.Port("9000/tcp")) // Ensure using nat.Port("9000/tcp")
 	if err != nil {
 		log.Fatalf("Error getting port: %v", err)
 	}
 
-	fmt.Printf("Specmatic stub server is running on http://%s:%s\n", host, port.Port())
+	// // update the backend port as test containers give random port bindings, to avoid collisions. and it can't be overriden.
+	config.SetBackendPort(port.Port())
+
+	// Access configuration
+	cfg := config.GetConfig()
+
+	fmt.Println("The updated value is ==>", cfg.BackendPort)
+
+	fmt.Printf("Specmatic Stub server is running on http://%s:%s\n", host, port.Port())
 
 	// Keep the container running
 	select {}

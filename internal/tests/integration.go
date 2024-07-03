@@ -1,152 +1,214 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"io"
 	"log"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"time"
 
-	"github.com/znsio/specmatic-order-bff-go/internal/docker"
+	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/wait"
+	"github.com/znsio/specmatic-order-bff-go/internal/config"
 )
-
-// HOST and PORT settings for the subs and the application
-const (
-	domainStubAPIHost = "localhost"
-	domainStubAPIPort = "9000"
-	kafkaMockHost     = "localhost"
-	kafkaMockPort     = "9092"
-	bffServerHost     = "localhost"
-	bffServerPort     = "8084"
-)
-
-// Map to store all cleanup function to stubs and application, for tear down later on.
-var tearDownActions []func() error
-
-// Represnts any service that we need to start on asynchronously
-type Service struct {
-	Name string
-	Cmd  *exec.Cmd
-	Host string
-	Port string
-}
 
 func main() {
 	ctx := context.Background()
-	ctx, cancel := context.WithCancel(ctx)
 
-	// Defer cancellation of context to stop all services when main exits
-	defer cancel()
-
-	// Defer cleanup of all started stubs and BFF application
-	defer func() {
-		for _, cleanup := range tearDownActions {
-			if err := cleanup(); err != nil {
-				log.Printf("Error during cleanup: %v", err)
-			}
-		}
-	}()
-
-	go func() {
-		// Step 1. start order api stub server (domain service)
-		docker.StartOrderStub()
-	}()
-
-	// Step 1. add services to be started, in order.
-	services := []Service{
-		{Name: "BFF", Cmd: exec.CommandContext(ctx, "go", "run", "cmd/main.go"), Host: bffServerHost, Port: bffServerPort},
+	// Load configuration from config.yaml
+	if err := config.LoadConfig(); err != nil {
+		log.Fatalf("Failed to load configuration: %v", err)
 	}
 
-	// Step 3. start the services
-	for _, service := range services {
-		err := startService(ctx, service)
-		if err != nil {
-			log.Fatalf("Failed to start %s: %v", service.Name, err)
-		}
-	}
+	// Access configuration
+	cfg := config.GetConfig()
 
-	// Step 4: Run the tests
-	err := runTests(ctx, bffServerHost, bffServerPort)
-	if err != nil {
-		log.Fatalf("Failed to run tests: %v", err)
-	}
-}
+	fmt.Println("=== 1 === >> Starting backend stub")
+	// STEP 1 :: Start backend stub
+	backendC, backendPort := startBackendStub(ctx)
+	defer backendC.Terminate(ctx)
 
-// Starts a service asynchronously and returns a cleanup function
-func startService(ctx context.Context, service Service) error {
-	fmt.Printf("Starting %s on %s:%s\n", service.Name, service.Host, service.Port)
+	fmt.Println("=== 1.2 === >> Starting Kafka stub")
+	// STEP 2 :: Start Kafka mock
+	kafkaC, kafkaPort := startKafkaMock(ctx)
+	defer kafkaC.Terminate(ctx)
 
-	if err := service.Cmd.Start(); err != nil {
-		return fmt.Errorf("failed to start %s: %v", service.Name, err)
-	}
+	// Update configuration
+	config.SetBackendPort(backendPort)
+	config.SetKafkaPort(kafkaPort)
 
-	// Capture the cleanup function for the current service
-	cleanup := func() error {
-		fmt.Printf("Stopping %s on %s:%s\n", service.Name, service.Host, service.Port)
-		return service.Cmd.Process.Kill()
-	}
+	fmt.Println("=== 2 === >> Starting BFF on host")
+	// STEP 3 :: Start BFF service (assuming it's started separately on the host)
+	go startBFFService(ctx, cfg)
 
-	// Store the cleanup function for later execution
-	tearDownActions = append(tearDownActions, cleanup)
-
-	// Start the service asynchronously
-	go func() {
-		err := service.Cmd.Wait()
-		if err != nil {
-			log.Printf("%s stopped with error: %v", service.Name, err)
-		}
-	}()
-
-	// Wait a bit to ensure the server has started (adjust as needed based on startup time)
+	fmt.Println("=== 3 === >> before sleept")
+	// Give some time for the BFF service to start
 	time.Sleep(5 * time.Second)
 
-	return nil
+	fmt.Println("=== 4 === >> after sleep, about to run test")
+	// STEP 4 (final step) :: Run tests
+	err := runTestContainer(ctx, backendPort, kafkaPort)
+	if err != nil {
+		fmt.Printf("Error running test container: %v", err)
+	}
+	fmt.Println("=== 5 === xxxxx all DONE.")
 }
 
-func runTests(ctx context.Context, host, port string) error {
-	cmd := exec.CommandContext(ctx, "specmatic", "test", "--host", host, "--port", port)
-	fmt.Printf("Running tests on %s:%s\n", host, port)
-
-	// Create pipes to capture stdout and stderr
-	stdout, err := cmd.StdoutPipe()
+func startBackendStub(ctx context.Context) (testcontainers.Container, string) {
+	pwd, err := os.Getwd()
 	if err != nil {
-		return fmt.Errorf("error creating stdout pipe: %v", err)
-	}
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		return fmt.Errorf("error creating stderr pipe: %v", err)
+		log.Fatalf("Error getting current directory: %v", err)
 	}
 
-	// Start the command
-	err = cmd.Start()
-	if err != nil {
-		return fmt.Errorf("error starting tests: %v", err)
+	req := testcontainers.ContainerRequest{
+		Image:        "znsio/specmatic",
+		ExposedPorts: []string{"9000/tcp"},
+		Cmd:          []string{"stub", "--config=/specmatic.json"},
+		Mounts: testcontainers.Mounts(
+			testcontainers.BindMount(filepath.Join(pwd, "./specmatic.json"), "/specmatic.json"),
+		),
+		WaitingFor: wait.ForLog("Stub server is running"),
 	}
 
-	// Print stdout and stderr in separate goroutines
-	go printOutput(stdout, "[specmatic test] ")
-	go printOutput(stderr, "[specmatic test ERROR] ")
-
-	// Wait for command to finish
-	err = cmd.Wait()
+	backendC, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: req,
+		Started:          true,
+	})
 	if err != nil {
-		return fmt.Errorf("error running tests: %v", err)
+		fmt.Printf("Error starting backend stub container: %v", err)
 	}
 
-	fmt.Println("Tests completed successfully.")
+	mappedPort, err := backendC.MappedPort(ctx, "9000")
+	if err != nil {
+		fmt.Printf("Error getting mapped port for backend stub: %v", err)
+	}
 
-	return nil
+	fmt.Println("=== 1.1 === >> existing from start backnd stub func")
+	return backendC, mappedPort.Port()
 }
 
-// printOutput reads from the test pipe and prints lines prefixed with the given prefix
-func printOutput(pipe io.ReadCloser, prefix string) {
-	scanner := bufio.NewScanner(pipe)
-	for scanner.Scan() {
-		fmt.Printf("%s%s\n", prefix, scanner.Text())
+func startKafkaMock(ctx context.Context) (testcontainers.Container, string) {
+	pwd, err := os.Getwd()
+	if err != nil {
+		fmt.Printf("Error getting current directory: %v", err)
 	}
-	if err := scanner.Err(); err != nil {
-		log.Printf("Error reading from pipe: %v", err)
+
+	req := testcontainers.ContainerRequest{
+		Image:        "kafka-stub:latest", // Replace with actual Kafka mock image
+		ExposedPorts: []string{"9092/tcp"},
+		Cmd:          []string{"--config=/specmatic.json"},
+		Mounts: testcontainers.Mounts(
+			testcontainers.BindMount(filepath.Join(pwd, "./specmatic.json"), "/specmatic.json"),
+		),
+		WaitingFor: wait.ForListeningPort("9092/tcp"),
+	}
+
+	kafkaC, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: req,
+		Started:          true,
+	})
+	if err != nil {
+		fmt.Printf("Error starting Kafka mock container: %v", err)
+	}
+
+	mappedPort, err := kafkaC.MappedPort(ctx, "9092")
+	if err != nil {
+		fmt.Printf("Error getting mapped port for Kafka mock: %v", err)
+	}
+
+	return kafkaC, mappedPort.Port()
+}
+
+func startBFFService(ctx context.Context, cfg *config.Config) {
+
+	cmd := exec.CommandContext(ctx, "go", "run", "cmd/main.go")
+
+	/*
+	* Setting dynamically allocated PORT for the backend service, via test controllers.
+	* this will be needed by BFF, that will run on a seperate thread.
+	 */
+	cmd.Env = append(os.Environ(),
+		fmt.Sprintf("BACKEND_PORT=%s", cfg.BackendPort),
+		fmt.Sprintf("KAFKA_PORT=%s", cfg.BackendPort),
+	)
+
+	err := cmd.Start()
+	if err != nil {
+		log.Fatalf("Failed to start BFF service: %v", err)
+	}
+
+	fmt.Println("=== 2.2 === >> existing from Starting BFF")
+}
+
+func runTestContainer(ctx context.Context, backendPort, kafkaPort string) error {
+	pwd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("error getting current directory: %v", err)
+	}
+
+	req := testcontainers.ContainerRequest{
+		Image: "znsio/specmatic",
+		Cmd:   []string{"test", "--host", "host.docker.internal", "--port", "8080", "--config=/specmatic.json"},
+		Mounts: testcontainers.Mounts(
+			testcontainers.BindMount(filepath.Join(pwd, "specmatic.json"), "/specmatic.json"),
+		),
+		Env: map[string]string{
+			"BACKEND_PORT": backendPort,
+			"KAFKA_PORT":   kafkaPort,
+		},
+		WaitingFor:  wait.ForLog("Tests completed"),
+		NetworkMode: "host",
+	}
+
+	testC, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: req,
+		Started:          true,
+	})
+	if err != nil {
+		return fmt.Errorf("error starting test container: %v", err)
+	}
+	defer testC.Terminate(ctx)
+
+	fmt.Println("=== 4.1=== >> setting log reader")
+	// Stream logs from the container
+	logReader, err := testC.Logs(ctx)
+	if err != nil {
+		return fmt.Errorf("error getting container logs: %v", err)
+	}
+	defer logReader.Close()
+
+	go func() {
+		_, err := io.Copy(os.Stdout, logReader)
+		if err != nil && err != io.EOF {
+			fmt.Printf("Error streaming logs: %v", err)
+		}
+	}()
+
+	fmt.Println("=== 4.2 === >> after log rader")
+	// Wait for the container to finish
+	waitCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+
+	fmt.Println("=== 4.3 === >> starting log reader")
+	for {
+		select {
+		case <-waitCtx.Done():
+			return fmt.Errorf("timeout waiting for container to finish")
+		default:
+			state, err := testC.State(ctx)
+			if err != nil {
+				return fmt.Errorf("error getting container state: %v", err)
+			}
+			if !state.Running {
+				if state.ExitCode != 0 {
+					return fmt.Errorf("tests failed with exit code: %d", state.ExitCode)
+				}
+				return nil // Container finished successfully
+			}
+			time.Sleep(1 * time.Second) // Wait before checking again
+		}
 	}
 }

@@ -2,29 +2,40 @@ package config
 
 import (
 	"fmt"
+	"os"
+	"sync"
 
 	"github.com/spf13/viper"
 )
 
 type Config struct {
-	BackendAPI                            string
 	BackendPort                           string
 	BackendHost                           string
 	ManagementEndpointsWebExposureInclude string
-	KafkaBootstrapServers                 string
 	KafkaTopic                            string
 	KafkaPort                             string
 	KafkaHost                             string
 	ServerPort                            string
 }
 
-var AppConfig Config
+var (
+	AppConfig     Config
+	configLoaded  bool
+	configLoadMux sync.Mutex
+)
 
 func LoadConfig() error {
+	configLoadMux.Lock()
+	defer configLoadMux.Unlock()
+
+	if configLoaded {
+		return nil // Config already loaded, no need to read again
+	}
+
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
 	viper.AddConfigPath(".")
-	viper.AutomaticEnv()
+	viper.AutomaticEnv() // Read in environment variables that match
 
 	err := viper.ReadInConfig()
 	if err != nil {
@@ -32,18 +43,49 @@ func LoadConfig() error {
 	}
 
 	AppConfig = Config{
-		BackendPort:                           viper.GetString("backend.port"),
-		BackendHost:                           viper.GetString("backend.host"),
-		ManagementEndpointsWebExposureInclude: viper.GetString("management.endpoints.web.exposure.include"),
-		KafkaTopic:                            viper.GetString("kafka.topic"),
-		KafkaPort:                             viper.GetString("kafka.port"),
-		KafkaHost:                             viper.GetString("kafka.host"),
-		ServerPort:                            viper.GetString("server.port"),
+		BackendPort:                           getConfigString("backend.port", "BACKEND_PORT"),
+		BackendHost:                           getConfigString("backend.host", "BACKEND_HOST"),
+		ManagementEndpointsWebExposureInclude: getConfigString("management.endpoints.web.exposure.include", "MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE"),
+		KafkaTopic:                            getConfigString("kafka.topic", "KAFKA_TOPIC"),
+		KafkaPort:                             getConfigString("kafka.port", "KAFKA_PORT"),
+		KafkaHost:                             getConfigString("kafka.host", "KAFKA_HOST"),
+		ServerPort:                            getConfigString("server.port", "SERVER_PORT"),
 	}
 
+	configLoaded = true
 	return nil
+}
+
+func getConfigString(key string, envVar string) string {
+	if value := os.Getenv(envVar); value != "" {
+		return value
+	}
+	return viper.GetString(key)
 }
 
 func GetConfig() *Config {
 	return &AppConfig
+}
+
+func SetBackendPort(port string) {
+	configLoadMux.Lock()
+	defer configLoadMux.Unlock()
+
+	fmt.Println("Port set =========>: ", port)
+	AppConfig.BackendPort = port
+}
+
+func SetKafkaPort(port string) {
+	configLoadMux.Lock()
+	defer configLoadMux.Unlock()
+
+	fmt.Println("Port set =========>: ", port)
+	AppConfig.KafkaPort = port
+}
+
+func ResetConfig() {
+	configLoadMux.Lock()
+	defer configLoadMux.Unlock()
+
+	configLoaded = false
 }

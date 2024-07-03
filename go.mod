@@ -3,6 +3,7 @@ module github.com/znsio/specmatic-order-bff-go
 go 1.22.4
 
 require (
+	github.com/docker/go-connections v0.4.0
 	github.com/gin-gonic/gin v1.10.0
 	github.com/segmentio/kafka-go v0.4.47
 	github.com/spf13/viper v1.19.0
@@ -24,7 +25,6 @@ require (
 	github.com/cpuguy83/dockercfg v0.3.1 // indirect
 	github.com/docker/distribution v2.8.2+incompatible // indirect
 	github.com/docker/docker v24.0.7+incompatible // indirect
-	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.4 // indirect

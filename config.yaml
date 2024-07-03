@@ -1,6 +1,6 @@
 backend:
   host: "localhost"   
-  port: "52709"        
+  port: "9000"        
 
 kafka:
   host: "localhost"   
@@ -8,7 +8,7 @@ kafka:
   topic: "product-queries"
 
 server:
-  port: "8084"
+  port: "8080"
 
 management:
   endpoints:
