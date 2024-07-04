@@ -60,5 +60,5 @@ make integration_tests
 ```
 OR
 ```shell
-go run internal/tests/integration.go
+go test -v ./internal/tests/... -count=1 
 ```

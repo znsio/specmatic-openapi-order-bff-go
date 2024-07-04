@@ -30,12 +30,12 @@ func TestIntegration(t *testing.T) {
 	}
 
 	// STEP 1 :: Start backend stub
-	fmt.Println("====== STEP 1 ======")
+	printHeader(1, "Start Backend Stub")
 	backendC, backendPort := startBackendStub(ctx)
 	defer backendC.Terminate(ctx)
 
 	// STEP 2 :: Start Kafka mock
-	fmt.Println("====== STEP 2 ======")
+	printHeader(2, "Start Kafka Mock")
 	kafkaC, kafkaPort := startKafkaMock(ctx)
 	defer kafkaC.Terminate(ctx)
 
@@ -44,7 +44,7 @@ func TestIntegration(t *testing.T) {
 	config.SetKafkaPort(kafkaPort)
 
 	// STEP 3 :: Start BFF service (assuming it's started separately on the host)
-	fmt.Println("====== STEP 3 ======")
+	printHeader(3, "Start BFF Service")
 	serverCtx, serverCancel := context.WithCancel(ctx)
 	serverUp := make(chan struct{})
 	serverDone := make(chan struct{})
@@ -60,7 +60,7 @@ func TestIntegration(t *testing.T) {
 	}
 
 	// STEP 4 (final step) :: Run tests
-	fmt.Println("====== STEP 4 ======")
+	printHeader(4, "Start TEST")
 	err := runTestContainer(ctx, backendPort, kafkaPort)
 	if err != nil {
 		fmt.Printf("Error running test container: %v", err)
@@ -68,7 +68,7 @@ func TestIntegration(t *testing.T) {
 
 	// Signal the BFF server to shutdown
 	// STEP 5 :: Terminate BFF server
-	fmt.Println("====== STEP 5 ======")
+	printHeader(5, "Begin Tear Down, tests completed.")
 	serverCancel()
 	select {
 	case <-serverDone:
@@ -156,7 +156,6 @@ func startBackendStub(ctx context.Context) (testcontainers.Container, string) {
 		fmt.Printf("Error getting mapped port for backend stub: %v", err)
 	}
 
-	fmt.Println("=== 1.1 === >> existing from start backnd stub func")
 	return backendC, mappedPort.Port()
 }
 
@@ -192,27 +191,6 @@ func startKafkaMock(ctx context.Context) (testcontainers.Container, string) {
 	return kafkaC, mappedPort.Port()
 }
 
-func startBFFService(ctx context.Context, cfg *config.Config) {
-
-	/*
-	* Setting dynamically allocated PORT for the backend service, via test controllers.
-	* this will be needed by BFF, that will run on a seperate thread.
-	 */
-	// cmd.Env = append(os.Environ(),
-	// 	fmt.Sprintf("BACKEND_PORT=%s", cfg.BackendPort),
-	// 	fmt.Sprintf("KAFKA_PORT=%s", cfg.BackendPort),
-	// )
-
-	// StartServer()
-
-	// err := cmd.Start()
-	// if err != nil {
-	// 	log.Fatalf("Failed to start BFF service: %v", err)
-	// }
-
-	// fmt.Println("=== 2.2 === >> existing from Starting BFF")
-}
-
 func runTestContainer(ctx context.Context, backendPort, kafkaPort string) error {
 	pwd, err := os.Getwd()
 	if err != nil {
@@ -242,7 +220,6 @@ func runTestContainer(ctx context.Context, backendPort, kafkaPort string) error 
 	}
 	defer testC.Terminate(ctx)
 
-	fmt.Println("=== 4.1=== >> setting log reader")
 	// Stream logs from the container
 	logReader, err := testC.Logs(ctx)
 	if err != nil {
@@ -257,12 +234,10 @@ func runTestContainer(ctx context.Context, backendPort, kafkaPort string) error 
 		}
 	}()
 
-	fmt.Println("=== 4.2 === >> after log rader")
 	// Wait for the container to finish
 	waitCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
 
-	fmt.Println("=== 4.3 === >> starting log reader")
 	for {
 		select {
 		case <-waitCtx.Done():
@@ -281,4 +256,12 @@ func runTestContainer(ctx context.Context, backendPort, kafkaPort string) error 
 			time.Sleep(1 * time.Second) // Wait before checking again
 		}
 	}
+}
+
+func printHeader(stepNum int, title string) {
+	fmt.Println("")
+	fmt.Printf("======== STEP %d =========\n", stepNum)
+	fmt.Println(title)
+	fmt.Println("=========================")
+	fmt.Println("")
 }

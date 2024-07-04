@@ -71,7 +71,6 @@ func SetBackendPort(port string) {
 	configLoadMux.Lock()
 	defer configLoadMux.Unlock()
 
-	fmt.Println("Port set =========>: ", port)
 	AppConfig.BackendPort = port
 }
 
@@ -79,7 +78,6 @@ func SetKafkaPort(port string) {
 	configLoadMux.Lock()
 	defer configLoadMux.Unlock()
 
-	fmt.Println("Port set =========>: ", port)
 	AppConfig.KafkaPort = port
 }
 
