@@ -36,12 +36,12 @@ func TestIntegration(t *testing.T) {
 
 	// STEP 2 :: Start Kafka mock
 	printHeader(2, "Start Kafka Mock")
-	// kafkaC, kafkaPort := startKafkaMock(ctx)
-	// defer kafkaC.Terminate(ctx)
+	kafkaC, kafkaPort := startKafkaMock(ctx)
+	defer kafkaC.Terminate(ctx)
 
 	// Update configuration, with dynamic port provided by test containers
 	config.SetBackendPort(backendPort)
-	// config.SetKafkaPort(kafkaPort)
+	config.SetKafkaPort(kafkaPort)
 
 	// STEP 3 :: Start BFF service (assuming it's started separately on the host)
 	printHeader(3, "Start BFF Service")
@@ -61,7 +61,7 @@ func TestIntegration(t *testing.T) {
 
 	// STEP 4 (final step) :: Run tests
 	printHeader(4, "Start TEST")
-	err := runTestContainer(ctx, backendPort, "9092")
+	err := runTestContainer(ctx, backendPort, kafkaPort)
 	if err != nil {
 		fmt.Printf("Error running test container: %v", err)
 	}
