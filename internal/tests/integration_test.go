@@ -166,13 +166,13 @@ func startKafkaMock(ctx context.Context) (testcontainers.Container, string) {
 	}
 
 	req := testcontainers.ContainerRequest{
-		Image:        "kafka-stub:latest", // Replace with actual Kafka mock image
+		Image:        "znsio/specmatic-kafka:0.22.5-TRIAL",
 		ExposedPorts: []string{"9092/tcp"},
-		Cmd:          []string{"--config=/specmatic.json"},
+		Cmd:          []string{"--config=/specmatic.json"}, // TODO: Switch to YAML
 		Mounts: testcontainers.Mounts(
 			testcontainers.BindMount(filepath.Join(pwd, "../../specmatic.json"), "/specmatic.json"),
 		),
-		WaitingFor: wait.ForListeningPort("9092/tcp"),
+		WaitingFor: wait.ForLog("Listening on topics: (product-queries)").WithStartupTimeout(2 * time.Minute),
 	}
 
 	kafkaC, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{

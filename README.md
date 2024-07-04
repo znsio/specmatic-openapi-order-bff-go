@@ -22,6 +22,10 @@ A typical web application might look like this. We can use Specmatic to practice
 ## Tech
 1. Go (Gin)
 
+## Steps
+* `go mod tidy`
+* `make` to run contract tests
+
 ## Install specmatic package
 npm install specmatic 
  

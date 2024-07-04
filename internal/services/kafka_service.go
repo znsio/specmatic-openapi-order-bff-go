@@ -16,6 +16,11 @@ import (
 func SendProductMessages(products []models.Product) error {
 	cfg := config.GetConfig()
 
+	fmt.Println("Start Printing Kafka Config:")
+	fmt.Println(cfg.KafkaHost)
+	fmt.Println(cfg.KafkaPort)
+	fmt.Println("End Printing Kafka Config")
+
 	// Create a new Kafka writer with more configuration options
 	w := kafka.NewWriter(kafka.WriterConfig{
 		Brokers:      []string{cfg.KafkaHost + ":" + cfg.KafkaPort},
