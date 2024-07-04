@@ -96,7 +96,7 @@ func (s *BackendService) CreateProduct(newProduct models.NewProduct) (int, error
 func (s *BackendService) CreateOrder(orderRequest models.OrderRequest) (int, error) {
 	apiUrl := s.BaseURL + "/orders" // Assuming this is the endpoint for creating orders
 
-	order := models.Order{
+	order := models.NewOrder{
 		ProductID: orderRequest.ProductID,
 		Count:     orderRequest.Count,
 		Status:    "pending",
