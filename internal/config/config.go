@@ -24,7 +24,7 @@ var (
 	configLoadMux sync.Mutex
 )
 
-func LoadConfig() error {
+func LoadConfig(configPath string) error {
 	configLoadMux.Lock()
 	defer configLoadMux.Unlock()
 
@@ -34,7 +34,7 @@ func LoadConfig() error {
 
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
-	viper.AddConfigPath(".")
+	viper.AddConfigPath(configPath)
 	viper.AutomaticEnv() // Read in environment variables that match
 
 	err := viper.ReadInConfig()

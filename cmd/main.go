@@ -13,10 +13,14 @@ var authToken = "API-TOKEN-SPEC"
 
 func main() {
 	// Load configuration from config.yaml
-	if err := config.LoadConfig(); err != nil {
+	if err := config.LoadConfig("."); err != nil {
 		log.Fatalf("Failed to load configuration: %v", err)
 	}
 
+	StartServer()
+}
+
+func StartServer() {
 	// Access configuration
 	cfg := config.GetConfig()
 

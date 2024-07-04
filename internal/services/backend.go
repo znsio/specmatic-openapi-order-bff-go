@@ -38,10 +38,10 @@ func (s *BackendService) GetAllProducts(productType string, pageSize int) ([]mod
 	}
 
 	// // Send Kafka messages
-	err = SendProductMessages(products)
-	if err != nil {
-		return nil, fmt.Errorf("error sending Kafka messages: %w", err)
-	}
+	// err = SendProductMessages(products)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("error sending Kafka messages: %w", err)
+	// }
 
 	return products, nil
 }

@@ -1,60 +1,130 @@
-package main
+package main_test
 
 import (
 	"context"
 	"fmt"
 	"io"
 	"log"
+	"net/http"
+	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
+	"testing"
 	"time"
 
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
+	"github.com/znsio/specmatic-order-bff-go/internal/api"
 	"github.com/znsio/specmatic-order-bff-go/internal/config"
+	"github.com/znsio/specmatic-order-bff-go/internal/services"
 )
 
-func main() {
+var authToken = "API-TOKEN-SPEC"
+
+func TestIntegration(t *testing.T) {
 	ctx := context.Background()
 
 	// Load configuration from config.yaml
-	if err := config.LoadConfig(); err != nil {
+	if err := config.LoadConfig("../../"); err != nil {
 		log.Fatalf("Failed to load configuration: %v", err)
 	}
 
-	// Access configuration
-	cfg := config.GetConfig()
-
-	fmt.Println("=== 1 === >> Starting backend stub")
 	// STEP 1 :: Start backend stub
+	fmt.Println("====== STEP 1 ======")
 	backendC, backendPort := startBackendStub(ctx)
 	defer backendC.Terminate(ctx)
 
-	fmt.Println("=== 1.2 === >> Starting Kafka stub")
 	// STEP 2 :: Start Kafka mock
+	fmt.Println("====== STEP 2 ======")
 	kafkaC, kafkaPort := startKafkaMock(ctx)
 	defer kafkaC.Terminate(ctx)
 
-	// Update configuration
+	// Update configuration, with dynamic port provided by test containers
 	config.SetBackendPort(backendPort)
 	config.SetKafkaPort(kafkaPort)
 
-	fmt.Println("=== 2 === >> Starting BFF on host")
 	// STEP 3 :: Start BFF service (assuming it's started separately on the host)
-	go startBFFService(ctx, cfg)
+	fmt.Println("====== STEP 3 ======")
+	serverCtx, serverCancel := context.WithCancel(ctx)
+	serverUp := make(chan struct{})
+	serverDone := make(chan struct{})
 
-	fmt.Println("=== 3 === >> before sleept")
-	// Give some time for the BFF service to start
-	time.Sleep(5 * time.Second)
+	go startBFFServer(serverCtx, serverDone, serverUp)
 
-	fmt.Println("=== 4 === >> after sleep, about to run test")
+	// Wait for the BFF server to be up and running, max for 10 seconds
+	select {
+	case <-serverUp:
+		fmt.Println("BFF server is up and running")
+	case <-time.After(10 * time.Second):
+		t.Fatal("Timeout waiting for BFF server to start")
+	}
+
 	// STEP 4 (final step) :: Run tests
+	fmt.Println("====== STEP 4 ======")
 	err := runTestContainer(ctx, backendPort, kafkaPort)
 	if err != nil {
 		fmt.Printf("Error running test container: %v", err)
 	}
-	fmt.Println("=== 5 === xxxxx all DONE.")
+
+	// Signal the BFF server to shutdown
+	// STEP 5 :: Terminate BFF server
+	fmt.Println("====== STEP 5 ======")
+	serverCancel()
+	select {
+	case <-serverDone:
+		fmt.Println("BFF server has been terminated")
+	case <-time.After(10 * time.Second):
+		t.Fatal("Timeout waiting for BFF server to terminate")
+	}
+}
+
+func startBFFServer(ctx context.Context, done chan<- struct{}, up chan<- struct{}) {
+	// Access configuration
+	cfg := config.GetConfig()
+
+	backendURL := url.URL{
+		Scheme: "http",
+		Host:   cfg.BackendHost + ":" + cfg.BackendPort,
+	}
+
+	backendService := services.NewBackendService(backendURL.String(), authToken)
+
+	// setup router and start server
+	r := api.SetupRouter(backendService)
+	// create a new http.Server
+	srv := &http.Server{
+		Addr:    ":" + cfg.ServerPort,
+		Handler: r,
+	}
+
+	// channel to signal when the server is ready
+	ready := make(chan struct{})
+
+	go func() {
+		// signal that the server is ready to accept connections
+		close(ready)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("listen: %s\n", err)
+		}
+	}()
+
+	// wait for the server to be ready
+	<-ready
+	// signal that the server is up
+	close(up)
+
+	// wait for cancel signal
+	<-ctx.Done()
+
+	// shutdown the server with a timeout
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		log.Printf("Server Shutdown Failed:%+v", err)
+	}
+
+	// signal that the server has shut down
+	close(done)
 }
 
 func startBackendStub(ctx context.Context) (testcontainers.Container, string) {
@@ -68,7 +138,7 @@ func startBackendStub(ctx context.Context) (testcontainers.Container, string) {
 		ExposedPorts: []string{"9000/tcp"},
 		Cmd:          []string{"stub", "--config=/specmatic.json"},
 		Mounts: testcontainers.Mounts(
-			testcontainers.BindMount(filepath.Join(pwd, "./specmatic.json"), "/specmatic.json"),
+			testcontainers.BindMount(filepath.Join(pwd, "../../specmatic.json"), "/specmatic.json"),
 		),
 		WaitingFor: wait.ForLog("Stub server is running"),
 	}
@@ -101,7 +171,7 @@ func startKafkaMock(ctx context.Context) (testcontainers.Container, string) {
 		ExposedPorts: []string{"9092/tcp"},
 		Cmd:          []string{"--config=/specmatic.json"},
 		Mounts: testcontainers.Mounts(
-			testcontainers.BindMount(filepath.Join(pwd, "./specmatic.json"), "/specmatic.json"),
+			testcontainers.BindMount(filepath.Join(pwd, "../../specmatic.json"), "/specmatic.json"),
 		),
 		WaitingFor: wait.ForListeningPort("9092/tcp"),
 	}
@@ -124,23 +194,23 @@ func startKafkaMock(ctx context.Context) (testcontainers.Container, string) {
 
 func startBFFService(ctx context.Context, cfg *config.Config) {
 
-	cmd := exec.CommandContext(ctx, "go", "run", "cmd/main.go")
-
 	/*
 	* Setting dynamically allocated PORT for the backend service, via test controllers.
 	* this will be needed by BFF, that will run on a seperate thread.
 	 */
-	cmd.Env = append(os.Environ(),
-		fmt.Sprintf("BACKEND_PORT=%s", cfg.BackendPort),
-		fmt.Sprintf("KAFKA_PORT=%s", cfg.BackendPort),
-	)
+	// cmd.Env = append(os.Environ(),
+	// 	fmt.Sprintf("BACKEND_PORT=%s", cfg.BackendPort),
+	// 	fmt.Sprintf("KAFKA_PORT=%s", cfg.BackendPort),
+	// )
 
-	err := cmd.Start()
-	if err != nil {
-		log.Fatalf("Failed to start BFF service: %v", err)
-	}
+	// StartServer()
 
-	fmt.Println("=== 2.2 === >> existing from Starting BFF")
+	// err := cmd.Start()
+	// if err != nil {
+	// 	log.Fatalf("Failed to start BFF service: %v", err)
+	// }
+
+	// fmt.Println("=== 2.2 === >> existing from Starting BFF")
 }
 
 func runTestContainer(ctx context.Context, backendPort, kafkaPort string) error {
@@ -153,7 +223,7 @@ func runTestContainer(ctx context.Context, backendPort, kafkaPort string) error 
 		Image: "znsio/specmatic",
 		Cmd:   []string{"test", "--host", "host.docker.internal", "--port", "8080", "--config=/specmatic.json"},
 		Mounts: testcontainers.Mounts(
-			testcontainers.BindMount(filepath.Join(pwd, "specmatic.json"), "/specmatic.json"),
+			testcontainers.BindMount(filepath.Join(pwd, "../../specmatic.json"), "/specmatic.json"),
 		),
 		Env: map[string]string{
 			"BACKEND_PORT": backendPort,
