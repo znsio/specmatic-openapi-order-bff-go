@@ -1,9 +1,9 @@
-# Specmatic Sample: Springboot BFF calling Domain API
+# Specmatic Sample: GO BFF calling Domain API
 
 * [Specmatic Website](https://specmatic.in)
 * [Specmatic Documenation](https://specmatic.in/documentation.html)
 
-This sample project demonstrates how we can practice contract-driven development and contract testing in a SpringBoot (Kotlin) application that depends on an external domain service and Kafka. Here, Specmatic is used to stub calls to domain API service based on its OpenAPI spec and mock Kafka based on its AsyncAPI spec.
+This sample project demonstrates how we can practice contract-driven development and contract testing in a GO application that depends on an external domain service and Kafka. Here, Specmatic is used to stub calls to domain API service based on its OpenAPI spec and mock Kafka based on its AsyncAPI spec.
 
 Here is the domain api [contract/open api spec](https://github.com/znsio/specmatic-order-contracts/blob/main/in/specmatic/examples/store/api_order_v1.yaml)
 
@@ -15,14 +15,12 @@ Here is the [AsyncAPI spec](https://github.com/znsio/specmatic-order-contracts/b
 * Specmatic Stub/Mock Server: Create a server that can act as a real service using its OpenAPI or AsyncAPI spec
 
 ## Background
-A typical web application might look like this. We can use Specmatic to practice contract-driven development and test all the components mentioned below. In this sample project, we look at how to do this for nodejs BFF which is dependent on Domain API Service and Kafka demonstrating both OpenAPI and AsyncAPI support in specmatic.
+A typical web application might look like this. We can use Specmatic to practice contract-driven development and test all the components mentioned below. In this sample project, we look at how to do this for GO BFF which is dependent on Domain API Service and Kafka demonstrating both OpenAPI and AsyncAPI support in specmatic.
 
 ![HTML client talks to client API which talks to backend API](assets/specmatic-order-bff-architecture.gif)
 
 ## Tech
 1. Go (Gin)
-2. Specmatic 
-3. Specmatic Beta extension (for mocking Kafka)
 
 ## Install specmatic package
 npm install specmatic 
