@@ -24,3 +24,6 @@ package-lock.json
 .specmatic/
 
 kafka-logs/
+
+# ignore the built file of bff go app.
+main
