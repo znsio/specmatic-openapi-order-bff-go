@@ -17,6 +17,18 @@ services:
     entrypoint: ["tail", "-f", "/dev/null"]
     # networks:
     #   - host
+  
+  specmatic-contract-test:
+    image: znsio/specmatic
+    container_name: specmatic-contract-test
+    network_mode: service:go-app
+    depends_on:
+      - go-app
+    volumes:
+      - ./specmatic.json:/specmatic.json
+      # - ./.specmatic:./.specmatic:rw
+    entrypoint: ["tail", "-f", "/dev/null"]
+    # command: test --config=/specmatic.json --port=8080
 
   go-app:
     build: .
