@@ -1,0 +1,49 @@
+version: '3.8'
+
+networks:
+  default:
+    driver: bridge
+  loopback:
+    driver: bridge
+
+services:
+  kafka-client:
+    image: edenhill/kafkacat:1.6.0
+    container_name: kafka-client
+    platform: linux/amd64
+    network_mode: service:specmatic-kafka
+    depends_on:
+      - specmatic-kafka
+    entrypoint: ["tail", "-f", "/dev/null"]
+    # networks:
+    #   - host
+
+  go-app:
+    build: .
+    container_name: go-app
+    network_mode: service:specmatic-kafka
+    depends_on:
+      - order-api-mock
+      - specmatic-kafka
+
+  order-api-mock:
+    image: znsio/specmatic
+    container_name: order-api-mock
+    ports:
+      - "8090:8090"
+    volumes:
+      - ./specmatic.json:/specmatic.json
+      # - ./.specmatic:./.specmatic:rw
+    command: stub --config=/specmatic.json --port=8090
+
+  specmatic-kafka:
+    image: znsio/specmatic-kafka:0.22.5-TRIAL
+    container_name: specmatic-kafka
+    ports:
+      - "9092:9092"
+      - "2181:2181"  # Zookeeper client port
+      - "2888:2888"  # Zookeeper follower port
+      - "3888:3888"  # Zookeeper election port
+      # - "56200-57038:56200-57038"
+    volumes:
+      - ./specmatic.json:/usr/src/app/specmatic.json

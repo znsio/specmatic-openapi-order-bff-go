@@ -1,6 +1,6 @@
 backend:
-  host: "localhost"   
-  port: "9000"        
+  host: "order-api-mock"   
+  port: "8090"        
 
 kafka:
   host: "localhost"   
