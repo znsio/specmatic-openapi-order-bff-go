@@ -34,10 +34,11 @@ func TestIntegration(t *testing.T) {
 	backendC, backendPort := startBackendStub(ctx)
 	defer backendC.Terminate(ctx)
 
+	kafkaPort := "9092" // temp hardcode, comment then when enabilng, the code below
 	// STEP 2 :: Start Kafka mock
-	printHeader(2, "Start Kafka Mock")
-	kafkaC, kafkaPort := startKafkaMock(ctx)
-	defer kafkaC.Terminate(ctx)
+	// printHeader(2, "Start Kafka Mock")
+	// kafkaC, kafkaPort := startKafkaMock(ctx)
+	// defer kafkaC.Terminate(ctx)
 
 	// Update configuration, with dynamic port provided by test containers
 	config.SetBackendPort(backendPort)
@@ -66,8 +67,7 @@ func TestIntegration(t *testing.T) {
 		fmt.Printf("Error running test container: %v", err)
 	}
 
-	// Signal the BFF server to shutdown
-	// STEP 5 :: Terminate BFF server
+	// STEP 5 :: Tear Down
 	printHeader(5, "Begin Tear Down, tests completed.")
 	serverCancel()
 	select {

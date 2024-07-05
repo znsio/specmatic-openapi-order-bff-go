@@ -24,9 +24,9 @@ func (pc *ProductController) FetchAvailableProducts(c *gin.Context) {
 		return
 	}
 
-	products, err := pc.BackendService.GetAllProducts(productType, pageSize.(int))
+	products, errorCode, err := pc.BackendService.GetAllProducts(productType, pageSize.(int))
 	if err != nil {
-		utils.ErrorResponse(c, http.StatusInternalServerError, err.Error())
+		utils.ErrorResponse(c, errorCode, err.Error())
 		return
 	}
 

@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"time"
 
 	"github.com/znsio/specmatic-order-bff-go/internal/models"
 )
@@ -19,31 +21,45 @@ func NewBackendService(baseURL string, authToken string) *BackendService {
 	return &BackendService{BaseURL: baseURL, AuthToken: authToken}
 }
 
-func (s *BackendService) GetAllProducts(productType string, pageSize int) ([]models.Product, error) {
-	resp, err := http.Get(s.BaseURL + "/products?type=" + productType)
-
-	if err != nil {
-		return nil, err
+func (s *BackendService) GetAllProducts(productType string, pageSize int) ([]models.Product, int, error) {
+	// Create a new HTTP client with a timeout
+	client := &http.Client{
+		Timeout: 3 * time.Second, // Set the timeout to 3 seconds
 	}
+
+	// Construct the URL with query parameters
+	url := fmt.Sprintf("%s/products?type=%s", s.BaseURL, productType)
+
+	// Make the HTTP GET request
+	resp, err := client.Get(url)
+
+	// Check for errors, including timeout
+	if err != nil {
+		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+			return nil, http.StatusServiceUnavailable, fmt.Errorf("503 Service Unavailable: %w", err)
+		}
+		return nil, http.StatusServiceUnavailable, fmt.Errorf("503 Service Unavailable: %w", err)
+	}
+
 	defer resp.Body.Close()
 
 	// If the response is not OK, return the error message from the backend
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("something went wrong, please check if you provided a valid 'type': %w", err)
+		return nil, http.StatusInternalServerError, fmt.Errorf("something went wrong, please check if you provided a valid 'type': %w", err)
 	}
 
 	var products []models.Product
 	if err := json.NewDecoder(resp.Body).Decode(&products); err != nil {
-		return nil, err
+		return nil, http.StatusInternalServerError, err
 	}
 
 	// // Send Kafka messages
 	err = SendProductMessages(products)
 	if err != nil {
-		return nil, fmt.Errorf("error sending Kafka messages: %w", err)
+		return nil, http.StatusInternalServerError, fmt.Errorf("error sending Kafka messages: %w", err)
 	}
 
-	return products, nil
+	return products, -1, nil
 }
 
 func (s *BackendService) CreateProduct(newProduct models.NewProduct) (int, error) {
