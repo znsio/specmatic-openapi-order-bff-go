@@ -3,8 +3,8 @@ backend:
   port: "8090"        
 
 kafka:
-  host: "localhost"   
-  port: "9092"       
+  host: "specmatic-kafka"
+  port: "9093"
   topic: "product-queries"
 
 server:
