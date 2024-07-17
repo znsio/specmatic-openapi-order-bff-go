@@ -6,6 +6,7 @@
 
 # IDE-specific files and directories
 .vscode/
+.idea
 
 # Log files
 *.log
@@ -24,3 +25,6 @@ package-lock.json
 .specmatic/
 
 kafka-logs/
+
+# ignore the built file of bff go app.
+main
