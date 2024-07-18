@@ -26,7 +26,7 @@ func SendProductMessages(products []models.Product) error {
 
 	// Create a new Kafka writer with more configuration options
 	w := kafka.NewWriter(kafka.WriterConfig{
-		Brokers:      []string{cfg.KafkaHost + ":" + cfg.KafkaPort},
+		Brokers:      []string{"specmatic-kafka:" + cfg.KafkaPort},
 		Topic:        cfg.KafkaTopic,
 		Balancer:     &kafka.LeastBytes{},
 		WriteTimeout: 10 * time.Second,
