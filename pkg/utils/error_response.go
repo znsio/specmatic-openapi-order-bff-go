@@ -1,5 +1,3 @@
-// File: utils/response.go
-
 package utils
 
 import (

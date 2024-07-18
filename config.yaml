@@ -1,20 +1,16 @@
 backend:
-  host: "order-api-mock"   
-  port: "8090"        
+  host: "localhost"   
+  port: "9000"        
 
 kafka:
   host: "localhost"   
   port: "9092"       
   topic: "product-queries"
 
-server:
+bff_server:
   port: "8080"
 
-management:
-  endpoints:
-    web:
-      exposure:
-        include: "*"
+
 
 
 

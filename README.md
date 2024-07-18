@@ -22,16 +22,17 @@ A typical web application might look like this. We can use Specmatic to practice
 ## Tech
 1. Go (Gin)
 
-## Steps
-* `go mod tidy`
-* `make` to run contract tests
-
-## Install specmatic package
-npm install specmatic 
- 
-## Start BFF Server
-This will start the Go BFF server
+## Contract testing (Run Tests)
+### Using test containers (preferred)
 ```shell
+go mod tidy
+go test contract_test.go -v -count=1
+```
+ 
+### Using by building and running the application using specmatic JAR file (old-school)
+
+```shell
+go mod tidy
 go run cmd/main.go
 ```
 _*Note:* When running this command you might get an error:_
@@ -55,12 +56,8 @@ Access find orders api again at http://localhost:8080/findAvailableProducts with
 [{"id":698,"name":"NUBYR","type":"book","inventory":278}]
 ```
 
-## Run Tests
-This will start the specmatic stub server for domain api using the information in specmatic.json and run the integration tests that expects the domain api at port 8090.
+### Run Test
 ```shell
-make integration_tests
+java -jar specmatic.jar test --port=8080    
 ```
-OR
-```shell
-go test -v ./internal/tests/... -count=1 
-```
+

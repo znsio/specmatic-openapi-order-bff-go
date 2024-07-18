@@ -27,3 +27,5 @@ kafka-logs/
 
 # ignore the built file of bff go app.
 main
+
+specmatic-order-bff-go
