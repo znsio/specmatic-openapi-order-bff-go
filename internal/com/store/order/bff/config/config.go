@@ -3,8 +3,6 @@ package config
 import (
 	"fmt"
 	"os"
-
-	"github.com/spf13/viper"
 )
 
 type Config struct {
@@ -17,34 +15,23 @@ type Config struct {
 }
 
 func LoadConfig() (*Config, error) {
-
-	var config Config
-
-	viper.SetConfigName("config.yaml")
-	viper.SetConfigType("yaml")
-	viper.AddConfigPath(".")
-	viper.AutomaticEnv() // Read in environment variables that match
-
-	err := viper.ReadInConfig()
-	if err != nil {
-		return nil, fmt.Errorf("error reading config file: %w", err)
+	config := &Config{
+		BackendPort:   getEnvOrDefault("DOMAIN_SERVER_PORT", "9000"),
+		BackendHost:   getEnvOrDefault("DOMAIN_SERVER_HOST", "order-api-mock"),
+		KafkaTopic:    getEnvOrDefault("KAFKA_TOPIC", "product-queries"),
+		KafkaPort:     getEnvOrDefault("KAFKA_PORT", "9093"),
+		KafkaHost:     getEnvOrDefault("KAFKA_HOST", "specmatic-kafka"),
+		BFFServerPort: getEnvOrDefault("SERVER_PORT", "8080"),
 	}
 
-	config = Config{
-		BackendPort:   getConfigString("backend.port", "DOMAIN_SERVER_PORT"),
-		BackendHost:   getConfigString("backend.host", "DOMAIN_SERVER_HOST"),
-		KafkaTopic:    getConfigString("kafka.topic", "KAFKA_TOPIC"),
-		KafkaPort:     getConfigString("kafka.port", "KAFKA_PORT"),
-		KafkaHost:     getConfigString("kafka.host", "KAFKA_HOST"),
-		BFFServerPort: getConfigString("bff_server.port", "SERVER_PORT"),
-	}
-
-	return &config, nil
+	return config, nil
 }
 
-func getConfigString(key string, envVar string) string {
-	if value := os.Getenv(envVar); value != "" {
+func getEnvOrDefault(key, defaultValue string) string {
+	if value, exists := os.LookupEnv(key); exists {
+		fmt.Printf("%s received via env var: %s\n", key, value)
 		return value
 	}
-	return viper.GetString(key)
+	fmt.Printf("%s using default value: %s\n", key, defaultValue)
+	return defaultValue
 }

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"net/url"
 
@@ -27,7 +26,6 @@ func StartServer(cfg *config.Config) {
 		Scheme: "http",
 		Host:   cfg.BackendHost + ":" + cfg.BackendPort,
 	}
-	fmt.Println("port received is ================ : ", cfg.BackendHost+":"+cfg.BackendPort)
 	backendService := services.NewBackendService(backendURL.String(), authToken)
 
 	// setup router and start server
