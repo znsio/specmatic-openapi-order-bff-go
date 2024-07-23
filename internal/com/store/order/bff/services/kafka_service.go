@@ -19,16 +19,9 @@ func SendProductMessages(products []models.Product) error {
 		return fmt.Errorf("error loading config: %w", err)
 	}
 
-	fmt.Println("Start Printing Kafka Config ====== > :")
-	fmt.Println(cfg.KafkaHost)
-	fmt.Println(cfg.KafkaPort)
-	fmt.Println("End Printing Kafka Config < ======== ")
-
 	// Create a new Kafka writer with more configuration options
 	w := kafka.NewWriter(kafka.WriterConfig{
-		// Brokers: []string{cfg.KafkaPort},
-		// Brokers: []string{cfg.KafkaHost + ":" + cfg.KafkaPort},
-		Brokers:      []string{"host.docker.internal" + ":" + cfg.KafkaPort},
+		Brokers:      []string{cfg.KafkaHost + ":" + cfg.KafkaPort},
 		Topic:        cfg.KafkaTopic,
 		Balancer:     &kafka.LeastBytes{},
 		WriteTimeout: 10 * time.Second,

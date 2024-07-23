@@ -144,10 +144,13 @@ func startDomainService(t *testing.T, env *testEnvironment) (testcontainers.Cont
 		Mounts: testcontainers.Mounts(
 			testcontainers.BindMount(filepath.Join(pwd, "specmatic.json"), "/usr/src/app/specmatic.json"),
 		),
+		NetworkAliases: map[string][]string{
+			env.dockerNetwork.Name: {"domain-service"},
+		},
 		WaitingFor: wait.ForLog("Stub server is running"),
 	}
 
-	t.Log("BFF Container created")
+	t.Log("Domain Container created")
 
 	backendC, err := testcontainers.GenericContainer(env.ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
@@ -177,12 +180,17 @@ func startKafkaMock(t *testing.T, env *testEnvironment) (testcontainers.Containe
 		return nil, "", fmt.Errorf("invalid port number: %w", err)
 	}
 
+	networkName := env.dockerNetwork.Name
+
 	req := testcontainers.ContainerRequest{
 		Name:         "specmatic-kafka",
 		Image:        "znsio/specmatic-kafka-trial:0.22.5",
 		ExposedPorts: []string{port.Port() + "/tcp"},
 		Networks: []string{
-			env.dockerNetwork.Name,
+			networkName,
+		},
+		NetworkAliases: map[string][]string{
+			networkName: {"specmatic-kafka"},
 		},
 		Cmd: []string{"--config=/specmatic.json"}, // TODO: Switch to YAML
 		Mounts: testcontainers.Mounts(
@@ -199,9 +207,6 @@ func startKafkaMock(t *testing.T, env *testEnvironment) (testcontainers.Containe
 		fmt.Printf("Error starting Kafka mock container: %v", err)
 	}
 
-	// endPoint, err := kafkaC.Endpoint(env.ctx, "specmatic-kafka")
-	// fmt.Println("endpoint it is here kafka =====>> : ", endPoint)
-
 	mappedPort, err := kafkaC.MappedPort(env.ctx, "9093")
 	if err != nil {
 		fmt.Printf("Error getting mapped port for Kafka mock: %v", err)
@@ -217,6 +222,7 @@ func startBFFService(t *testing.T, env *testEnvironment) (testcontainers.Contain
 		return nil, "", fmt.Errorf("invalid port number: %w", err)
 	}
 
+	networkName := env.dockerNetwork.Name
 	dockerfilePath := "Dockerfile"
 	contextPath := "."
 
@@ -236,6 +242,9 @@ func startBFFService(t *testing.T, env *testEnvironment) (testcontainers.Contain
 			env.dockerNetwork.Name,
 		},
 		WaitingFor: wait.ForLog("Listening and serving"),
+		NetworkAliases: map[string][]string{
+			networkName: {"bff-service"},
+		},
 	}
 
 	bffContainer, err := testcontainers.GenericContainer(env.ctx, testcontainers.GenericContainerRequest{
