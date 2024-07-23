@@ -42,10 +42,8 @@ func TestIntegration(t *testing.T) {
 	// RUN (run specmatic-grpc test in container)
 	runTests(t, env)
 
-	select {}
-
 	// TEAR DOWN
-	// defer tearDown(t, env)
+	defer tearDown(t, env)
 }
 
 func setUpEnv(t *testing.T) *testEnvironment {
