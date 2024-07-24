@@ -16,7 +16,7 @@ type Config struct {
 
 func LoadConfig() (*Config, error) {
 	config := &Config{
-		BackendPort:   getEnvOrDefault("DOMAIN_SERVER_PORT", "8090"),
+		BackendPort:   getEnvOrDefault("DOMAIN_SERVER_PORT", "9000"),
 		BackendHost:   getEnvOrDefault("DOMAIN_SERVER_HOST", "order-api-mock"),
 		KafkaTopic:    getEnvOrDefault("KAFKA_TOPIC", "product-queries"),
 		KafkaPort:     getEnvOrDefault("KAFKA_PORT", "9093"),

@@ -33,16 +33,13 @@ type testEnvironment struct {
 	config                   *config.Config
 }
 
-func TestIntegration(t *testing.T) {
+func TestContract(t *testing.T) {
 	env := setUpEnv(t)
 
-	// setUp (start domain service stub with specmatic-grpc and bff server in container)
 	setUp(t, env)
 
-	// RUN (run specmatic-grpc test in container)
 	runTests(t, env)
 
-	// TEAR DOWN
 	defer tearDown(t, env)
 }
 
@@ -205,7 +202,7 @@ func startKafkaMock(t *testing.T, env *testEnvironment) (testcontainers.Containe
 		fmt.Printf("Error starting Kafka mock container: %v", err)
 	}
 
-	mappedPort, err := kafkaC.MappedPort(env.ctx, "9093")
+	mappedPort, err := kafkaC.MappedPort(env.ctx, port)
 	if err != nil {
 		fmt.Printf("Error getting mapped port for Kafka mock: %v", err)
 	}
