@@ -4,8 +4,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/znsio/specmatic-order-bff-go/internal/models"
-	"github.com/znsio/specmatic-order-bff-go/internal/services"
+	"github.com/znsio/specmatic-order-bff-go/internal/com/store/order/bff/models"
+	"github.com/znsio/specmatic-order-bff-go/internal/com/store/order/bff/services"
 	"github.com/znsio/specmatic-order-bff-go/pkg/utils"
 )
 

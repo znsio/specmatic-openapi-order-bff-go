@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/znsio/specmatic-order-bff-go/internal/models"
+	"github.com/znsio/specmatic-order-bff-go/internal/com/store/order/bff/models"
 )
 
 type BackendService struct {
@@ -22,6 +22,8 @@ func NewBackendService(baseURL string, authToken string) *BackendService {
 }
 
 func (s *BackendService) GetAllProducts(productType string, pageSize int) ([]models.Product, int, error) {
+
+	fmt.Println("find all product enetered ============================")
 	// Create a new HTTP client with a timeout
 	client := &http.Client{
 		Timeout: 3 * time.Second, // Set the timeout to 3 seconds

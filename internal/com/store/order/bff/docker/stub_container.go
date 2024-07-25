@@ -10,7 +10,7 @@ import (
 	"github.com/docker/go-connections/nat"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
-	"github.com/znsio/specmatic-order-bff-go/internal/config"
+	"github.com/znsio/specmatic-order-bff-go/internal/com/store/order/bff/config"
 )
 
 func StartOrderStub() {

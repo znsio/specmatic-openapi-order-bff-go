@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  kafka-client:
+    image: edenhill/kafkacat:1.6.0
+    container_name: kafka-client
+    platform: linux/amd64
+    depends_on:
+      - specmatic-kafka
+    entrypoint: ["tail", "-f", "/dev/null"]
+
+  specmatic-contract-test:
+    image: znsio/specmatic
+    container_name: specmatic-contract-test
+    depends_on:
+      - go-app
+    volumes:
+      - ./specmatic.json:/specmatic.json
+    command: test --config=/specmatic.json --testBaseURL=http://go-app:8080
+
+  go-app:
+    build: .
+    container_name: go-app
+    ports:
+      - "8080:8080"
+    depends_on:
+      - order-api-mock
+      - specmatic-kafka
+
+  order-api-mock:
+    image: znsio/specmatic
+    container_name: order-api-mock
+    ports:
+      - "8090:8090"
+    volumes:
+      - ./specmatic.json:/specmatic.json
+    command: stub --config=/specmatic.json --port=8090
+
+  specmatic-kafka:
+    image: znsio/specmatic-kafka-trial
+    container_name: specmatic-kafka
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./specmatic.json:/usr/src/app/specmatic.json

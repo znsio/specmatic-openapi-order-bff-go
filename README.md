@@ -22,45 +22,10 @@ A typical web application might look like this. We can use Specmatic to practice
 ## Tech
 1. Go (Gin)
 
-## Steps
-* `go mod tidy`
-* `make` to run contract tests
-
-## Install specmatic package
-npm install specmatic 
+## Contract testing (Run Tests)
+### Using test containers (preferred)
+```shell
+go mod tidy
+go test contract_test.go -v -count=1
+```
  
-## Start BFF Server
-This will start the Go BFF server
-```shell
-go run cmd/main.go
-```
-_*Note:* When running this command you might get an error:_
-```shell
-Could not find in. specmatic: specmatic-kafka:0.xx.yy.
-```
-You would have got this error because you don't have access to Specmatic Kafka. To fix this issue, reach out to us at specmatic@xnsio.com and we'll add you to our beta program and provide you access.
-
-Access find orders api at http://localhost:8080/findAvailableProducts
-_*Note:* Unless domain api service is running on port 9000, above requests will fail. Move to next section for solution!_
-
-### Start BFF Server with Domain API Stub
-1. Download Specmatic Jar from [github](https://github.com/znsio/specmatic/releases)
-
-2. Start domain api stub server
-```shell
-java -jar specmatic.jar stub
-```
-Access find orders api again at http://localhost:8080/findAvailableProducts with result like
-```json
-[{"id":698,"name":"NUBYR","type":"book","inventory":278}]
-```
-
-## Run Tests
-This will start the specmatic stub server for domain api using the information in specmatic.json and run the integration tests that expects the domain api at port 8090.
-```shell
-make integration_tests
-```
-OR
-```shell
-go test -v ./internal/tests/... -count=1 
-```

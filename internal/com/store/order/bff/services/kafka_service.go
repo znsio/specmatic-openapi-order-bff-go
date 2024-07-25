@@ -9,17 +9,15 @@ import (
 	"time"
 
 	"github.com/segmentio/kafka-go"
-	"github.com/znsio/specmatic-order-bff-go/internal/config"
-	"github.com/znsio/specmatic-order-bff-go/internal/models"
+	"github.com/znsio/specmatic-order-bff-go/internal/com/store/order/bff/config"
+	"github.com/znsio/specmatic-order-bff-go/internal/com/store/order/bff/models"
 )
 
 func SendProductMessages(products []models.Product) error {
-	cfg := config.GetConfig()
-
-	fmt.Println("Start Printing Kafka Config:")
-	fmt.Println(cfg.KafkaHost)
-	fmt.Println(cfg.KafkaPort)
-	fmt.Println("End Printing Kafka Config")
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		return fmt.Errorf("error loading config: %w", err)
+	}
 
 	// Create a new Kafka writer with more configuration options
 	w := kafka.NewWriter(kafka.WriterConfig{
