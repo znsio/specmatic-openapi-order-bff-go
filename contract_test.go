@@ -140,7 +140,7 @@ func startDomainService(t *testing.T, env *testEnvironment) (testcontainers.Cont
 			testcontainers.BindMount(filepath.Join(pwd, "specmatic.json"), "/usr/src/app/specmatic.json"),
 		),
 		NetworkAliases: map[string][]string{
-			env.dockerNetwork.Name: {"domain-service"},
+			env.dockerNetwork.Name: {"order-api-mock"},
 		},
 		WaitingFor: wait.ForLog("Stub server is running"),
 	}
@@ -227,10 +227,10 @@ func startBFFService(t *testing.T, env *testEnvironment) (testcontainers.Contain
 			Dockerfile: dockerfilePath,
 		},
 		Env: map[string]string{
-			"DOMAIN_SERVER_PORT": env.domainServiceDynamicPort,
-			"DOMAIN_SERVER_HOST": "host.docker.internal",
-			"KAFKA_PORT":         env.kafkaServiceDynamicPort,
-			"KAFKA_HOST":         "host.docker.internal",
+			"DOMAIN_SERVER_PORT": env.config.BackendPort,
+			"DOMAIN_SERVER_HOST": "order-api-mock",
+			"KAFKA_PORT":         env.config.KafkaPort,
+			"KAFKA_HOST":         "specmatic-kafka",
 		},
 		ExposedPorts: []string{port.Port() + "/tcp"},
 		Networks: []string{
@@ -264,7 +264,7 @@ func runTestContainer(env *testEnvironment) (string, error) {
 		return "", fmt.Errorf("Error getting current directory: %v", err)
 	}
 
-	bffPortInt, err := strconv.Atoi(env.bffServiceDynamicPort)
+	bffPortInt, err := strconv.Atoi(env.config.BFFServerPort)
 	if err != nil {
 		return "", fmt.Errorf("invalid port number: %w", err)
 	}
@@ -274,7 +274,7 @@ func runTestContainer(env *testEnvironment) (string, error) {
 		Env: map[string]string{
 			"SPECMATIC_GENERATIVE_TESTS": "true",
 		},
-		Cmd: []string{"test", fmt.Sprintf("--port=%d", bffPortInt), "--host=host.docker.internal"},
+		Cmd: []string{"test", fmt.Sprintf("--port=%d", bffPortInt), "--host=bff-service"},
 		Mounts: testcontainers.Mounts(
 			testcontainers.BindMount(filepath.Join(pwd, "specmatic.json"), "/usr/src/app/specmatic.json"),
 		),
