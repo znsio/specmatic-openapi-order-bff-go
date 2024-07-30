@@ -92,6 +92,7 @@ func runTests(t *testing.T, env *testEnvironment) {
 	testLogs, err := runTestContainer(env)
 	if err != nil {
 		t.Logf("Could not run test container: %s", err)
+		t.Fail()
 	}
 
 	// Print test outcomes
