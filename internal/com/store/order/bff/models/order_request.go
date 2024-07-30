@@ -1,6 +1,6 @@
 package models
 
 type OrderRequest struct {
-	ProductID int `json:"productid"`
-	Count     int `json:"count"`
+	ProductID int `json:"productid" binding:"required"`
+	Count     int `json:"count" binding:"required"`
 }

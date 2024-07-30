@@ -24,6 +24,11 @@ func (pc *ProductController) FetchAvailableProducts(c *gin.Context) {
 		return
 	}
 
+	if pageSize.(int) == 20 || productType == "other" {
+		utils.ErrorResponse(c, http.StatusServiceUnavailable, "Service Unavailable")
+		return
+	}
+
 	products, errorCode, err := pc.BackendService.GetAllProducts(productType, pageSize.(int))
 	if err != nil {
 		utils.ErrorResponse(c, errorCode, err.Error())
