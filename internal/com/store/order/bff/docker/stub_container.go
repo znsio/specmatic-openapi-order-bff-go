@@ -25,9 +25,9 @@ func StartOrderStub() {
 	req := testcontainers.ContainerRequest{
 		Image:        "znsio/specmatic",
 		ExposedPorts: []string{"9000/tcp"},
-		Cmd:          []string{"stub", "--config=/specmatic.json"},
+		Cmd:          []string{"stub", "--config=/specmatic.yaml"},
 		Mounts: testcontainers.Mounts(
-			testcontainers.BindMount(filepath.Join(pwd, "./specmatic.json"), "/specmatic.json"),
+			testcontainers.BindMount(filepath.Join(pwd, "./specmatic.yaml"), "/specmatic.yaml"),
 			testcontainers.BindMount(filepath.Join(pwd, "./.specmatic"), "/.specmatic"),
 		),
 		WaitingFor: wait.ForLog("Stub server is running"),

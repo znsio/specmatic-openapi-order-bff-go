@@ -15,8 +15,8 @@ services:
     depends_on:
       - go-app
     volumes:
-      - ./specmatic.json:/specmatic.json
-    command: test --config=/specmatic.json --testBaseURL=http://go-app:8080
+      - ./specmatic.yaml:/specmatic.yaml
+    command: test --config=/specmatic.yaml --testBaseURL=http://go-app:8080
 
   go-app:
     build: .
@@ -33,8 +33,8 @@ services:
     ports:
       - "8090:8090"
     volumes:
-      - ./specmatic.json:/specmatic.json
-    command: stub --config=/specmatic.json --port=8090
+      - ./specmatic.json:/specmatic.yaml
+    command: stub --config=/specmatic.yaml --port=8090
 
   specmatic-kafka:
     image: znsio/specmatic-kafka-trial
@@ -42,4 +42,4 @@ services:
     ports:
       - "9093:9093"
     volumes:
-      - ./specmatic.json:/usr/src/app/specmatic.json
+      - ./specmatic.json:/usr/src/app/specmatic.yaml
