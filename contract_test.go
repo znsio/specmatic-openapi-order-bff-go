@@ -3,8 +3,10 @@ package main_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -42,9 +44,9 @@ func TestContract(t *testing.T) {
 
 	runTests(t, env)
 
-	select {}
+	// select {}
 
-	// defer tearDown(t, env)
+	defer tearDown(t, env)
 }
 
 func setUpEnv(t *testing.T) *testEnvironment {
@@ -56,7 +58,7 @@ func setUpEnv(t *testing.T) *testEnvironment {
 	return &testEnvironment{
 		ctx:                  context.Background(),
 		config:               config,
-		expectedMessageCount: 6,
+		expectedMessageCount: 3,
 	}
 }
 
@@ -95,8 +97,10 @@ func setUp(t *testing.T, env *testEnvironment) {
 func runTests(t *testing.T, env *testEnvironment) {
 	printHeader(t, 4, "Starting tests")
 	testLogs, err := runTestContainer(env)
-	if err != nil {
+
+	if (err != nil) && !strings.Contains(err.Error(), "code 0") {
 		t.Logf("Could not run test container: %s", err)
+		t.Fail()
 	}
 
 	// Print test outcomes
@@ -112,30 +116,10 @@ func tearDown(t *testing.T, env *testEnvironment) {
 	}
 
 	if env.kafkaServiceContainer != nil {
-		if err := env.kafkaServiceContainer.Terminate(env.ctx); err != nil {
-			t.Logf("Failed to terminate Kafka container: %v", err)
-		}
-	}
-
-	if env.kafkaServiceContainer != nil {
-		logs, err := env.kafkaServiceContainer.Logs(env.ctx)
-		if err != nil {
-			t.Fatalf("Failed to get Kafka mock logs: %v", err)
-		}
-		defer logs.Close()
-
-		logContent, err := io.ReadAll(logs)
-		if err != nil {
-			t.Fatalf("Failed to read Kafka mock logs: %v", err)
-		}
-
-		if !strings.Contains(string(logContent), "All expectations met") {
-			t.Fatalf("Kafka mock expectations were not met. Logs: %s", string(logContent))
-		}
-
-		if err := env.kafkaServiceContainer.Terminate(env.ctx); err != nil {
-			t.Logf("Failed to terminate Kafka container: %v", err)
-		}
+		verifyKafkaExpectations(t, env)
+		// if err := env.kafkaServiceContainer.Terminate(env.ctx); err != nil {
+		// 	t.Logf("Failed to terminate Kafka container: %v", err)
+		// }
 	}
 
 	if env.domainServiceContainer != nil {
@@ -143,6 +127,29 @@ func tearDown(t *testing.T, env *testEnvironment) {
 			t.Logf("Failed to terminate stub container: %v", err)
 		}
 	}
+}
+
+func verifyKafkaExpectations(t *testing.T, env *testEnvironment) {
+	url := fmt.Sprintf("http://%s:%s/expectations/result", env.config.KafkaHost, env.config.KafkaPort)
+	resp, err := http.Get(url)
+	if err != nil {
+		t.Fatalf("Failed to get Kafka expectations result: %v", err)
+	}
+	defer resp.Body.Close()
+
+	var result struct {
+		Success bool   `json:"success"`
+		Errors  string `json:"errors"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		t.Fatalf("Failed to parse Kafka expectations result: %v", err)
+	}
+
+	if !result.Success {
+		t.Fatalf("Kafka mock expectations were not met. Errors: %s", result.Errors)
+	}
+
+	t.Log("Kafka mock expectations were met successfully.")
 }
 
 func startDomainService(t *testing.T, env *testEnvironment) (testcontainers.Container, string, error) {
@@ -165,7 +172,7 @@ func startDomainService(t *testing.T, env *testEnvironment) (testcontainers.Cont
 		},
 		Cmd: []string{"stub"},
 		Mounts: testcontainers.Mounts(
-			testcontainers.BindMount(filepath.Join(pwd, "specmatic.json"), "/usr/src/app/specmatic.json"),
+			testcontainers.BindMount(filepath.Join(pwd, "specmatic.yaml"), "/usr/src/app/specmatic.yaml"),
 		),
 		NetworkAliases: map[string][]string{
 			env.bffTestNetwork.Name: {env.config.BackendHost},
@@ -206,8 +213,7 @@ func startKafkaMock(t *testing.T, env *testEnvironment) (testcontainers.Containe
 	networkName := env.bffTestNetwork.Name
 
 	req := testcontainers.ContainerRequest{
-		Image: "znsio/specmatic-kafka:0.22.7-local",
-		// Image:        "znsio/specmatic-kafka-trial:0.22.5",
+		Image:        "znsio/specmatic-kafka-trial",
 		ExposedPorts: []string{port.Port() + "/tcp"},
 		Networks: []string{
 			networkName,
@@ -215,9 +221,9 @@ func startKafkaMock(t *testing.T, env *testEnvironment) (testcontainers.Containe
 		NetworkAliases: map[string][]string{
 			networkName: {env.config.KafkaHost},
 		},
-		Cmd: []string{"--config=/specmatic.json"}, // TODO: Switch to YAML
+		Cmd: []string{"--config=/specmatic.yaml"},
 		Mounts: testcontainers.Mounts(
-			testcontainers.BindMount(filepath.Join(pwd, "specmatic.json"), "/specmatic.json"),
+			testcontainers.BindMount(filepath.Join(pwd, "specmatic.yaml"), "/specmatic.yaml"),
 		),
 		Env: map[string]string{
 			"KAFKA_EXTERNAL_HOST":    env.config.KafkaHost,
@@ -239,6 +245,12 @@ func startKafkaMock(t *testing.T, env *testEnvironment) (testcontainers.Containe
 	mappedPort, err := kafkaC.MappedPort(env.ctx, port)
 	if err != nil {
 		fmt.Printf("Error getting mapped port for Kafka mock: %v", err)
+	}
+
+	// Set expectations after the container has started
+	err = setKafkaExpectations(kafkaC, env)
+	if err != nil {
+		fmt.Printf("failed to set Kafka expectations: %v", err)
 	}
 
 	return kafkaC, mappedPort.Port(), nil
@@ -292,6 +304,23 @@ func startBFFService(t *testing.T, env *testEnvironment) (testcontainers.Contain
 	return bffContainer, dynamicBffPort.Port(), nil
 }
 
+func setKafkaExpectations(kafkaC testcontainers.Container, env *testEnvironment) error {
+	expectation := fmt.Sprintf(`{"topic": "product-queries", "count": %d}`, env.expectedMessageCount)
+	url := fmt.Sprintf("http://%s:%s/expectations", env.config.KafkaHost, env.config.KafkaPort)
+
+	resp, err := http.Post(url, "application/json", strings.NewReader(expectation))
+	if err != nil {
+		return fmt.Errorf("failed to set Kafka expectations: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("failed to set Kafka expectations: HTTP %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
 func runTestContainer(env *testEnvironment) (string, error) {
 	pwd, err := os.Getwd()
 	if err != nil {
@@ -310,7 +339,7 @@ func runTestContainer(env *testEnvironment) (string, error) {
 		},
 		Cmd: []string{"test", fmt.Sprintf("--port=%d", bffPortInt), "--host=bff-service"},
 		Mounts: testcontainers.Mounts(
-			testcontainers.BindMount(filepath.Join(pwd, "specmatic.json"), "/usr/src/app/specmatic.json"),
+			testcontainers.BindMount(filepath.Join(pwd, "specmatic.yaml"), "/usr/src/app/specmatic.yaml"),
 		),
 		Networks: []string{
 			env.bffTestNetwork.Name,
@@ -322,9 +351,11 @@ func runTestContainer(env *testEnvironment) (string, error) {
 		ContainerRequest: req,
 		Started:          true,
 	})
+
 	if err != nil {
 		return "", err
 	}
+
 	// Terminate test container post completion
 	defer testContainer.Terminate(env.ctx)
 
