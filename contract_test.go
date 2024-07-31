@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -90,8 +91,10 @@ func setUp(t *testing.T, env *testEnvironment) {
 func runTests(t *testing.T, env *testEnvironment) {
 	printHeader(t, 4, "Starting tests")
 	testLogs, err := runTestContainer(env)
-	if err != nil {
+
+	if (err != nil) && !strings.Contains(err.Error(), "code 0") {
 		t.Logf("Could not run test container: %s", err)
+		t.Fail()
 	}
 
 	// Print test outcomes
@@ -137,7 +140,7 @@ func startDomainService(t *testing.T, env *testEnvironment) (testcontainers.Cont
 		},
 		Cmd: []string{"stub"},
 		Mounts: testcontainers.Mounts(
-			testcontainers.BindMount(filepath.Join(pwd, "specmatic.json"), "/usr/src/app/specmatic.json"),
+			testcontainers.BindMount(filepath.Join(pwd, "specmatic.yaml"), "/usr/src/app/specmatic.yaml"),
 		),
 		NetworkAliases: map[string][]string{
 			env.dockerNetwork.Name: {"order-api-mock"},
@@ -187,9 +190,9 @@ func startKafkaMock(t *testing.T, env *testEnvironment) (testcontainers.Containe
 		NetworkAliases: map[string][]string{
 			networkName: {"specmatic-kafka"},
 		},
-		Cmd: []string{"--config=/specmatic.json"}, // TODO: Switch to YAML
+		Cmd: []string{"--config=/specmatic.yaml"},
 		Mounts: testcontainers.Mounts(
-			testcontainers.BindMount(filepath.Join(pwd, "specmatic.json"), "/specmatic.json"),
+			testcontainers.BindMount(filepath.Join(pwd, "specmatic.yaml"), "/specmatic.yaml"),
 		),
 		WaitingFor: wait.ForLog("Listening on topics: (product-queries)").WithStartupTimeout(2 * time.Minute),
 	}
@@ -276,7 +279,7 @@ func runTestContainer(env *testEnvironment) (string, error) {
 		},
 		Cmd: []string{"test", fmt.Sprintf("--port=%d", bffPortInt), "--host=bff-service"},
 		Mounts: testcontainers.Mounts(
-			testcontainers.BindMount(filepath.Join(pwd, "specmatic.json"), "/usr/src/app/specmatic.json"),
+			testcontainers.BindMount(filepath.Join(pwd, "specmatic.yaml"), "/usr/src/app/specmatic.yaml"),
 		),
 		Networks: []string{
 			env.dockerNetwork.Name,
@@ -288,9 +291,11 @@ func runTestContainer(env *testEnvironment) (string, error) {
 		ContainerRequest: req,
 		Started:          true,
 	})
+
 	if err != nil {
 		return "", err
 	}
+
 	// Terminate test container post completion
 	defer testContainer.Terminate(env.ctx)
 
