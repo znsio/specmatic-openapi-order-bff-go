@@ -1,12 +1,12 @@
 package main_test
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/docker/go-connections/nat"
-	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/network"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -31,6 +30,7 @@ type testEnvironment struct {
 	domainServiceDynamicPort string
 	kafkaServiceContainer    testcontainers.Container
 	kafkaServiceDynamicPort  string
+	kafkaAPIPort             string
 	bffServiceContainer      testcontainers.Container
 	bffServiceDynamicPort    string
 	expectedMessageCount     int
@@ -44,8 +44,6 @@ func TestContract(t *testing.T) {
 
 	runTests(t, env)
 
-	// select {}
-
 	defer tearDown(t, env)
 }
 
@@ -55,25 +53,25 @@ func setUpEnv(t *testing.T) *testEnvironment {
 		t.Fatalf("Failed to load config: %v", err)
 	}
 
+	// create a context
+	ctx := context.Background()
+
+	// Create a net and store in env.
+	newNetwork, err := network.New(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	return &testEnvironment{
-		ctx:                  context.Background(),
+		ctx:                  ctx,
 		config:               config,
+		bffTestNetwork:       newNetwork,
 		expectedMessageCount: 3,
 	}
 }
 
 func setUp(t *testing.T, env *testEnvironment) {
 	var err error
-
-	// Create a sub net and store in env.
-	newNetwork, err := network.New(env.ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		require.NoError(t, newNetwork.Remove(env.ctx))
-	})
-	env.bffTestNetwork = newNetwork
 
 	printHeader(t, 1, "Starting Domain Service")
 	env.domainServiceContainer, env.domainServiceDynamicPort, err = startDomainService(t, env)
@@ -92,6 +90,7 @@ func setUp(t *testing.T, env *testEnvironment) {
 	if err != nil {
 		t.Fatalf("could not start bff service container: %v", err)
 	}
+
 }
 
 func runTests(t *testing.T, env *testEnvironment) {
@@ -116,10 +115,10 @@ func tearDown(t *testing.T, env *testEnvironment) {
 	}
 
 	if env.kafkaServiceContainer != nil {
-		verifyKafkaExpectations(t, env)
-		// if err := env.kafkaServiceContainer.Terminate(env.ctx); err != nil {
-		// 	t.Logf("Failed to terminate Kafka container: %v", err)
-		// }
+		verifyKafkaExpectations(env)
+		if err := env.kafkaServiceContainer.Terminate(env.ctx); err != nil {
+			t.Logf("Failed to terminate Kafka container: %v", err)
+		}
 	}
 
 	if env.domainServiceContainer != nil {
@@ -127,29 +126,6 @@ func tearDown(t *testing.T, env *testEnvironment) {
 			t.Logf("Failed to terminate stub container: %v", err)
 		}
 	}
-}
-
-func verifyKafkaExpectations(t *testing.T, env *testEnvironment) {
-	url := fmt.Sprintf("http://%s:%s/expectations/result", env.config.KafkaHost, env.config.KafkaPort)
-	resp, err := http.Get(url)
-	if err != nil {
-		t.Fatalf("Failed to get Kafka expectations result: %v", err)
-	}
-	defer resp.Body.Close()
-
-	var result struct {
-		Success bool   `json:"success"`
-		Errors  string `json:"errors"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		t.Fatalf("Failed to parse Kafka expectations result: %v", err)
-	}
-
-	if !result.Success {
-		t.Fatalf("Kafka mock expectations were not met. Errors: %s", result.Errors)
-	}
-
-	t.Log("Kafka mock expectations were met successfully.")
 }
 
 func startDomainService(t *testing.T, env *testEnvironment) (testcontainers.Container, string, error) {
@@ -226,10 +202,8 @@ func startKafkaMock(t *testing.T, env *testEnvironment) (testcontainers.Containe
 			testcontainers.BindMount(filepath.Join(pwd, "specmatic.yaml"), "/specmatic.yaml"),
 		),
 		Env: map[string]string{
-			"KAFKA_EXTERNAL_HOST":    env.config.KafkaHost,
-			"KAFKA_EXTERNAL_PORT":    env.config.KafkaPort,
-			"EXPECTED_TOPIC":         env.config.KafkaTopic,
-			"EXPECTED_MESSAGE_COUNT": strconv.Itoa(env.expectedMessageCount),
+			"KAFKA_EXTERNAL_HOST": env.config.KafkaHost,
+			"KAFKA_EXTERNAL_PORT": env.config.KafkaPort,
 		},
 		WaitingFor: wait.ForLog("Listening on topics: (product-queries)").WithStartupTimeout(2 * time.Minute),
 	}
@@ -247,10 +221,16 @@ func startKafkaMock(t *testing.T, env *testEnvironment) (testcontainers.Containe
 		fmt.Printf("Error getting mapped port for Kafka mock: %v", err)
 	}
 
-	// Set expectations after the container has started
-	err = setKafkaExpectations(kafkaC, env)
+	// Get the API server port
+	apiPort, err := getAPIServerPort(env.ctx, kafkaC)
 	if err != nil {
-		fmt.Printf("failed to set Kafka expectations: %v", err)
+		fmt.Printf("Error getting API server port: %v", err)
+	} else {
+		env.kafkaAPIPort = apiPort
+	}
+
+	if err := setKafkaExpectations(env, kafkaC); err != nil {
+		return nil, "", fmt.Errorf("failed to set Kafka expectations: %v", err)
 	}
 
 	return kafkaC, mappedPort.Port(), nil
@@ -302,23 +282,6 @@ func startBFFService(t *testing.T, env *testEnvironment) (testcontainers.Contain
 	}
 
 	return bffContainer, dynamicBffPort.Port(), nil
-}
-
-func setKafkaExpectations(kafkaC testcontainers.Container, env *testEnvironment) error {
-	expectation := fmt.Sprintf(`{"topic": "product-queries", "count": %d}`, env.expectedMessageCount)
-	url := fmt.Sprintf("http://%s:%s/expectations", env.config.KafkaHost, env.config.KafkaPort)
-
-	resp, err := http.Post(url, "application/json", strings.NewReader(expectation))
-	if err != nil {
-		return fmt.Errorf("failed to set Kafka expectations: %v", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("failed to set Kafka expectations: HTTP %d", resp.StatusCode)
-	}
-
-	return nil
 }
 
 func runTestContainer(env *testEnvironment) (string, error) {
@@ -373,6 +336,90 @@ func runTestContainer(env *testEnvironment) (string, error) {
 	}
 
 	return buf.String(), nil
+}
+
+func setKafkaExpectations(env *testEnvironment, kafkaC testcontainers.Container) error {
+	// Install curl
+	_, _, err := kafkaC.Exec(env.ctx, []string{"apk", "add", "--no-cache", "curl"})
+	if err != nil {
+		fmt.Printf("Error installing curl: %v", err)
+	}
+
+	cmd := []string{
+		"curl", "-X", "POST",
+		"-H", "Content-Type: application/json",
+		"-d", fmt.Sprintf(`[{"topic": "product-queries", "count": %d}]`, env.expectedMessageCount),
+		fmt.Sprintf("http://localhost:%s/_expectations", env.kafkaAPIPort),
+	}
+
+	exitCode, output, err := kafkaC.Exec(env.ctx, cmd)
+	if err != nil {
+		return fmt.Errorf("failed to execute set expectations command: %v", err)
+	}
+
+	if exitCode != 0 {
+		return fmt.Errorf("failed to set Kafka expectations. Exit code: %d, Output: %s", exitCode, output)
+	}
+
+	fmt.Printf("Kafka expectations set successfully. Output: %s\n", output)
+	return nil
+}
+
+func verifyKafkaExpectations(env *testEnvironment) error {
+	cmd := []string{
+		"curl", "-s", "-X", "POST",
+		fmt.Sprintf("http://localhost:%s/_expectations/verifications", env.kafkaAPIPort),
+	}
+
+	exitCode, outputReader, err := env.kafkaServiceContainer.Exec(env.ctx, cmd)
+	if err != nil {
+		return fmt.Errorf("failed to execute verify expectations command: %v", err)
+	}
+
+	outputBytes, err := io.ReadAll(outputReader)
+	if err != nil {
+		return fmt.Errorf("failed to read command output: %v", err)
+	}
+
+	if exitCode != 0 {
+		return fmt.Errorf("failed to verify Kafka expectations. Exit code: %d, Output: %s", exitCode, string(outputBytes))
+	}
+
+	var result struct {
+		Success bool     `json:"success"`
+		Errors  []string `json:"errors"`
+	}
+	if err := json.Unmarshal(outputBytes, &result); err != nil {
+		return fmt.Errorf("failed to parse Kafka expectations result: %v", err)
+	}
+
+	if !result.Success {
+		return fmt.Errorf("Kafka mock expectations were not met. Errors: %v", result.Errors)
+	}
+
+	fmt.Println("Kafka mock expectations were met successfully.")
+	return nil
+}
+
+func getAPIServerPort(ctx context.Context, container testcontainers.Container) (string, error) {
+	logs, err := container.Logs(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to get container logs: %v", err)
+	}
+	defer logs.Close()
+
+	scanner := bufio.NewScanner(logs)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.Contains(line, "Starting api server on port:") {
+			parts := strings.Split(line, ":")
+			if len(parts) > 1 {
+				return strings.TrimSpace(parts[len(parts)-1]), nil
+			}
+		}
+	}
+
+	return "", fmt.Errorf("API server port not found in logs")
 }
 
 func printHeader(t *testing.T, stepNum int, title string) {
