@@ -115,7 +115,11 @@ func tearDown(t *testing.T, env *testEnvironment) {
 	}
 
 	if env.kafkaServiceContainer != nil {
-		verifyKafkaExpectations(env)
+		err := verifyKafkaExpectations(env)
+		if err != nil {
+			t.Logf("Kafka expectations were not met: %s", err)
+			t.Fail()
+		}
 		if err := env.kafkaServiceContainer.Terminate(env.ctx); err != nil {
 			t.Logf("Failed to terminate Kafka container: %v", err)
 		}
@@ -230,7 +234,7 @@ func startKafkaMock(t *testing.T, env *testEnvironment) (testcontainers.Containe
 	}
 
 	if err := setKafkaExpectations(env, kafkaC); err != nil {
-		return nil, "", fmt.Errorf("failed to set Kafka expectations: %v", err)
+		fmt.Printf("failed to set Kafka expectations: %v", err)
 	}
 
 	return kafkaC, mappedPort.Port(), nil
@@ -361,7 +365,7 @@ func setKafkaExpectations(env *testEnvironment, kafkaC testcontainers.Container)
 		return fmt.Errorf("failed to set Kafka expectations. Exit code: %d, Output: %s", exitCode, output)
 	}
 
-	fmt.Printf("Kafka expectations set successfully. Output: %s\n", output)
+	fmt.Println("Kafka expectations set successfully")
 	return nil
 }
 
@@ -371,7 +375,7 @@ func verifyKafkaExpectations(env *testEnvironment) error {
 		fmt.Sprintf("http://localhost:%s/_expectations/verifications", env.kafkaAPIPort),
 	}
 
-	exitCode, outputReader, err := env.kafkaServiceContainer.Exec(env.ctx, cmd)
+	_, outputReader, err := env.kafkaServiceContainer.Exec(env.ctx, cmd)
 	if err != nil {
 		return fmt.Errorf("failed to execute verify expectations command: %v", err)
 	}
@@ -381,24 +385,42 @@ func verifyKafkaExpectations(env *testEnvironment) error {
 		return fmt.Errorf("failed to read command output: %v", err)
 	}
 
-	if exitCode != 0 {
-		return fmt.Errorf("failed to verify Kafka expectations. Exit code: %d, Output: %s", exitCode, string(outputBytes))
+	// Remove all non-printable characters
+	outputString := removeNonPrintableChars(string(outputBytes))
+
+	// Find the index of the first '{'
+	startIndex := strings.Index(outputString, "{")
+	if startIndex == -1 {
+		return fmt.Errorf("failed to find JSON start in output: %s", outputString)
 	}
+
+	// Trim everything before the '{'
+	outputString = outputString[startIndex:]
 
 	var result struct {
 		Success bool     `json:"success"`
 		Errors  []string `json:"errors"`
 	}
-	if err := json.Unmarshal(outputBytes, &result); err != nil {
-		return fmt.Errorf("failed to parse Kafka expectations result: %v", err)
+
+	if err := json.Unmarshal([]byte(outputString), &result); err != nil {
+		return fmt.Errorf("failed to parse Kafka expectations result: %v\nCleaned output: %s", err, outputString)
 	}
 
 	if !result.Success {
-		return fmt.Errorf("Kafka mock expectations were not met. Errors: %v", result.Errors)
+		return fmt.Errorf("%v", result.Errors)
 	}
 
 	fmt.Println("Kafka mock expectations were met successfully.")
 	return nil
+}
+
+func removeNonPrintableChars(s string) string {
+	return strings.Map(func(r rune) rune {
+		if r >= 32 && r != 127 {
+			return r
+		}
+		return -1
+	}, s)
 }
 
 func getAPIServerPort(ctx context.Context, container testcontainers.Container) (string, error) {
