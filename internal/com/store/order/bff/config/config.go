@@ -11,6 +11,7 @@ type Config struct {
 	KafkaTopic    string
 	KafkaPort     string
 	KafkaHost     string
+	KafkaAPIPort  string
 	BFFServerPort string
 }
 
@@ -21,6 +22,7 @@ func LoadConfig() (*Config, error) {
 		KafkaTopic:    getEnvOrDefault("KAFKA_TOPIC", "product-queries"),
 		KafkaPort:     getEnvOrDefault("KAFKA_PORT", "9093"),
 		KafkaHost:     getEnvOrDefault("KAFKA_HOST", "specmatic-kafka"),
+		KafkaAPIPort:  getEnvOrDefault("KAFKA_API_PORT", "9094"),
 		BFFServerPort: getEnvOrDefault("SERVER_PORT", "8080"),
 	}
 
