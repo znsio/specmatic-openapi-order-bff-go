@@ -78,7 +78,7 @@ func StartKafkaMock(t *testing.T, env *TestEnvironment) (testcontainers.Containe
 	networkName := env.BffTestNetwork.Name
 
 	req := testcontainers.ContainerRequest{
-		Image:        "znsio/specmatic-kafka-trial:0.22.7-local",
+		Image:        "znsio/specmatic-kafka-trial",
 		ExposedPorts: []string{port.Port() + "/tcp", env.Config.KafkaAPIPort + "/tcp"},
 		Networks: []string{
 			networkName,
