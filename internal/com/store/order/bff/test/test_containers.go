@@ -246,13 +246,12 @@ func SetKafkaExpectations(env *TestEnvironment) error {
 	}
 	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	_, err = ioutil.ReadAll(resp.Body)
 	if err != nil {
 		fmt.Println("Error reading response:", err)
 		return nil
 	}
 
-	fmt.Println(string(body))
 	return nil
 }
 

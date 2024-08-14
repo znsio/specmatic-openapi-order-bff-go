@@ -41,7 +41,7 @@ func setUpEnv(t *testing.T) *test.TestEnvironment {
 		Ctx:                  ctx,
 		Config:               config,
 		BffTestNetwork:       newNetwork,
-		ExpectedMessageCount: 3,
+		ExpectedMessageCount: 2,
 	}
 }
 

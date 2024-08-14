@@ -30,9 +30,9 @@ func SendProductMessages(products []models.Product) error {
 	})
 	defer w.Close()
 
-	for _, product := range products {
-		if err := sendSingleProduct(w, product); err != nil {
-			log.Printf("Error sending product (ID: %d): %v", product.ID, err)
+	if len(products) > 0 {
+		if err := sendSingleProduct(w, products[0]); err != nil {
+			log.Printf("Error sending product (ID: %d): %v", products[0].ID, err)
 			return err
 		}
 	}
