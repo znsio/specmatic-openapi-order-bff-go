@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -13,6 +11,7 @@ import (
 	"time"
 
 	"github.com/docker/go-connections/nat"
+	"github.com/go-resty/resty/v2"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 	"github.com/tidwall/gjson"
@@ -233,55 +232,52 @@ func RunTestContainer(env *TestEnvironment) (string, error) {
 	return buf.String(), nil
 }
 
+// func SetKafkaExpectations(env *TestEnvironment) error {
+// 	endpoint := "/_expectations"
+// 	url := fmt.Sprintf("http://%s:%s%s", env.KafkaAPIHost, env.KafkaDynamicAPIPort, endpoint)
+
+// 	postBody := []byte(fmt.Sprintf(`[{"topic": "product-queries", "count": %d}]`, env.ExpectedMessageCount))
+
+// 	resp, err := http.Post(url, "application/json", bytes.NewBuffer(postBody))
+// 	if err != nil {
+// 		fmt.Println("Error making request:", err)
+// 		return nil
+// 	}
+// 	defer resp.Body.Close()
+
+// 	_, err = ioutil.ReadAll(resp.Body)
+// 	if err != nil {
+// 		fmt.Println("Error reading response:", err)
+// 		return nil
+// 	}
+
+// 	return nil
+// }
+
 func SetKafkaExpectations(env *TestEnvironment) error {
-	endpoint := "/_expectations"
-	url := fmt.Sprintf("http://%s:%s%s", env.KafkaAPIHost, env.KafkaDynamicAPIPort, endpoint)
+	client := resty.New()
 
-	postBody := []byte(fmt.Sprintf(`[{"topic": "product-queries", "count": %d}]`, env.ExpectedMessageCount))
+	_, err := client.R().
+		SetHeader("Content-Type", "application/json").
+		SetBody(fmt.Sprintf(`[{"topic": "product-queries", "count": %d}]`, env.ExpectedMessageCount)).
+		Post(fmt.Sprintf("http://%s:%s/_expectations", env.KafkaAPIHost, env.KafkaDynamicAPIPort))
 
-	resp, err := http.Post(url, "application/json", bytes.NewBuffer(postBody))
-	if err != nil {
-		fmt.Println("Error making request:", err)
-		return nil
-	}
-	defer resp.Body.Close()
-
-	_, err = ioutil.ReadAll(resp.Body)
-	if err != nil {
-		fmt.Println("Error reading response:", err)
-		return nil
-	}
-
-	return nil
+	return err
 }
 
 func VerifyKafkaExpectations(env *TestEnvironment) error {
-	verificationUrl := fmt.Sprintf("http://%s:%s/%s", env.KafkaAPIHost, env.KafkaDynamicAPIPort, "_expectations/verifications")
+	client := resty.New()
 
-	resp, err := http.Post(verificationUrl, "application/json", nil)
-	if err != nil {
-		fmt.Println("Error making request:", err)
-		return nil
-	}
-	defer resp.Body.Close()
+	resp, err := client.R().
+		SetHeader("Content-Type", "application/json").
+		Post(fmt.Sprintf("http://%s:%s/_expectations/verifications", env.KafkaAPIHost, env.KafkaDynamicAPIPort))
 
-	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Println("Error reading response:", err)
-		return nil
+		return err
 	}
 
-	result := gjson.ParseBytes(body)
-
-	success := result.Get("success").Bool()
-	errors := result.Get("errors").Array()
-
-	if !success {
-		errorMessages := make([]string, len(errors))
-		for i, err := range errors {
-			errorMessages[i] = err.String()
-		}
-		return fmt.Errorf("%v", errorMessages)
+	if !gjson.GetBytes(resp.Body(), "success").Bool() {
+		return fmt.Errorf("verification failed: %v", gjson.GetBytes(resp.Body(), "errors").Array())
 	}
 
 	fmt.Println("Kafka mock expectations were met successfully.")
