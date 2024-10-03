@@ -30,3 +30,4 @@ kafka-logs/
 main
 
 specmatic-order-bff-go
+build/

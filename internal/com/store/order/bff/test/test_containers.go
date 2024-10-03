@@ -189,6 +189,11 @@ func RunTestContainer(env *TestEnvironment) (string, error) {
 		return "", fmt.Errorf("invalid port number: %w", err)
 	}
 
+	localReportDirectory := filepath.Join(pwd, "build", "reports")
+	if err := os.MkdirAll(localReportDirectory, 0755); err != nil {
+		return "", fmt.Errorf("Error creating reports directory: %v", err)
+	}
+
 	req := testcontainers.ContainerRequest{
 		Image: "znsio/specmatic",
 		Env: map[string]string{
@@ -197,6 +202,7 @@ func RunTestContainer(env *TestEnvironment) (string, error) {
 		Cmd: []string{"test", fmt.Sprintf("--port=%d", bffPortInt), "--host=bff-service"},
 		Mounts: testcontainers.Mounts(
 			testcontainers.BindMount(filepath.Join(pwd, "specmatic.yaml"), "/usr/src/app/specmatic.yaml"),
+			testcontainers.BindMount(localReportDirectory, "/usr/src/app/build/reports"),
 		),
 		Networks: []string{
 			env.BffTestNetwork.Name,
