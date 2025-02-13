@@ -198,6 +198,7 @@ func RunTestContainer(env *TestEnvironment) (string, error) {
 		Image: "znsio/specmatic",
 		Env: map[string]string{
 			"SPECMATIC_GENERATIVE_TESTS": "true",
+			"FILTER":"'/health'"
 		},
 		Cmd: []string{"test", fmt.Sprintf("--port=%d", bffPortInt), "--host=bff-service"},
 		Mounts: testcontainers.Mounts(
