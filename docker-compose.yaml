@@ -37,7 +37,7 @@ services:
     command: stub --config=/specmatic.yaml --port=8090
 
   specmatic-kafka:
-    image: znsio/specmatic-kafka-trial
+    image: znsio/specmatic-kafka
     container_name: specmatic-kafka
     ports:
       - "9093:9093"
