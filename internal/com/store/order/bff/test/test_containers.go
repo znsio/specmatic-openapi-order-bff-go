@@ -30,7 +30,7 @@ func StartDomainService(t *testing.T, env *TestEnvironment) (testcontainers.Cont
 	}
 
 	req := testcontainers.ContainerRequest{
-		Image:        "znsio/specmatic",
+		Image:        "znsio/specmatic-openapi",
 		ExposedPorts: []string{port.Port() + "/tcp"},
 		Networks: []string{
 			env.BffTestNetwork.Name,
@@ -195,10 +195,10 @@ func RunTestContainer(env *TestEnvironment) (string, error) {
 	}
 
 	req := testcontainers.ContainerRequest{
-		Image: "znsio/specmatic",
+		Image: "znsio/specmatic-openapi",
 		Env: map[string]string{
 			"SPECMATIC_GENERATIVE_TESTS": "true",
-			"FILTER":"'/health'",
+			"FILTER":                     "'/health'",
 		},
 		Cmd: []string{"test", fmt.Sprintf("--port=%d", bffPortInt), "--host=bff-service"},
 		Mounts: testcontainers.Mounts(

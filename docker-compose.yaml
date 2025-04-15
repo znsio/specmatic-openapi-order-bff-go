@@ -10,7 +10,7 @@ services:
     entrypoint: ["tail", "-f", "/dev/null"]
 
   specmatic-contract-test:
-    image: znsio/specmatic
+    image: znsio/specmatic-openapi
     container_name: specmatic-contract-test
     depends_on:
       - go-app
@@ -28,7 +28,7 @@ services:
       - specmatic-kafka
 
   order-api-mock:
-    image: znsio/specmatic
+    image: znsio/specmatic-openapi
     container_name: order-api-mock
     ports:
       - "8090:8090"
